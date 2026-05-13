@@ -338,7 +338,7 @@ export function LoginPage() {
                   <button
                     type="submit"
                     disabled={pending}
-                    className="flex h-[48px] w-full items-center justify-center gap-2 rounded-lg bg-turquoise font-sans text-sm font-semibold leading-5 text-white transition-colors duration-150 hover:bg-[#6d4ef0] disabled:cursor-not-allowed disabled:opacity-60 max-[360px]:h-11"
+                    className="flex h-[48px] w-full items-center justify-center gap-2 rounded-lg bg-turquoise font-sans text-sm font-semibold leading-5 text-white transition-colors duration-150 hover:bg-[#0ab0d4] disabled:cursor-not-allowed disabled:opacity-60 max-[360px]:h-11"
                   >
                     <MaterialIcon name="login" size={18} opticalSize={18} className="text-white" />
                     {pending ? 'Вход…' : 'Войти в арену'}

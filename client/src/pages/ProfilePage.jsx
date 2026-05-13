@@ -679,7 +679,7 @@ export function ProfilePage() {
                         <button
                           type="submit"
                           disabled={saveState === 'saving'}
-                          className="inline-flex h-11 min-w-0 flex-[1.15] basis-0 items-center justify-center gap-2 rounded-lg bg-turquoise px-4 text-sm font-semibold leading-5 text-white transition-colors duration-150 hover:bg-[#6d4ef0] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:flex-none md:basis-auto md:px-8"
+                          className="inline-flex h-11 min-w-0 flex-[1.15] basis-0 items-center justify-center gap-2 rounded-lg bg-turquoise px-4 text-sm font-semibold leading-5 text-white transition-colors duration-150 hover:bg-[#0ab0d4] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto md:flex-none md:basis-auto md:px-8"
                         >
                           <MaterialIcon
                             name="save"

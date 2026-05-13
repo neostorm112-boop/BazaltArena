@@ -39,7 +39,7 @@ const STATUS_TAB = /** @type {const} */ ({
 })
 
 const previewLinkPrimaryClass =
-  'inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#5b3fd4] via-turquoise to-[#9d7cff] px-4 py-2 font-mono text-xs font-bold uppercase tracking-wide text-white shadow-lg shadow-turquoise/20 hover:brightness-110 active:scale-[0.99]'
+  'inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#0a4d5c] via-[#0ab8d4] to-[#5ce9fc] px-4 py-2 font-mono text-xs font-bold uppercase tracking-wide text-white shadow-lg shadow-turquoise/25 hover:brightness-110 active:scale-[0.99]'
 const previewLinkOutlineClass =
   'inline-flex items-center justify-center rounded-xl border border-plantation bg-timber/40 px-4 py-2 font-mono text-xs font-semibold text-catskill hover:border-turquoise/50 hover:bg-white/[0.04]'
 

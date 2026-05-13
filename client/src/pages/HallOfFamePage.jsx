@@ -558,7 +558,7 @@ export function HallOfFamePage() {
                     <button
                       type="button"
                       onClick={() => setBriefOpen(true)}
-                      className="inline-flex h-11 w-[174px] shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-turquoise px-5 text-sm font-semibold leading-5 text-white transition-colors duration-150 hover:bg-[#6d4ef0] max-[360px]:w-full lg:self-end"
+                      className="inline-flex h-11 w-[174px] shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-turquoise px-5 text-sm font-semibold leading-5 text-white transition-colors duration-150 hover:bg-[#0ab0d4] max-[360px]:w-full lg:self-end"
                     >
                       <MaterialIcon name="description" size={16} className="text-white" />
                       Открыть бриф

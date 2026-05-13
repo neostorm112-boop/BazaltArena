@@ -119,14 +119,14 @@ function SprintTimeBar({ sprint, variant, nowMs }) {
     variant === 'arena' &&
     sprint.active &&
     !isSprintTemporallyFinished(sprint, nowMs) &&
-    'shadow-[0_0_16px_rgba(157,124,255,0.55)]'
-  const ongoingGlow = variant === 'ongoing' && !done && 'shadow-[0_0_8px_rgba(91,63,212,0.35)]'
+    'shadow-[0_0_16px_rgba(13,204,242,0.5)]'
+  const ongoingGlow = variant === 'ongoing' && !done && 'shadow-[0_0_8px_rgba(13,204,242,0.38)]'
   const track = done ? 'bg-plantation/80' : 'bg-plantation'
   const fill = done
     ? 'bg-gradient-to-r from-gull/50 to-gull/15'
     : variant === 'ongoing'
-      ? 'bg-gradient-to-r from-[#7c5cdb] via-[#5b3fd4] to-[#22184d]'
-      : 'bg-gradient-to-r from-[#9d7cff] via-[#5b3fd4] to-[#1c1538]'
+      ? 'bg-gradient-to-r from-[#065a6b] via-[#0aa5c4] to-[#0dccf2]'
+      : 'bg-gradient-to-r from-[#0b7a91] via-[#0cc4e8] to-[#101f22]'
   const rimGlow = arenaGlow || ongoingGlow || ''
   return (
     <div className="mt-2 max-w-md">

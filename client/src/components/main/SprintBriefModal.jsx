@@ -258,7 +258,7 @@ export function SprintBriefModal({ open, onClose, sprint }) {
           <Link
             to={sprintTo}
             onClick={onClose}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-turquoise px-5 font-sans text-sm font-semibold leading-5 text-white transition-colors duration-150 hover:bg-[#6d4ef0] sm:w-auto"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-turquoise px-5 font-sans text-sm font-semibold leading-5 text-white transition-colors duration-150 hover:bg-[#0ab0d4] sm:w-auto"
           >
             <MaterialIcon name="rocket_launch" size={16} className="text-white" />
             Перейти к спринту
