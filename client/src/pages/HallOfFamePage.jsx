@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { deleteSolutionLike, getHall, putSolutionLike } from '../api/basaltApi.js'
 import { useAuth } from '../auth/useAuth.js'
 import { queryKeys } from '../lib/queryKeys.js'
@@ -242,37 +242,57 @@ function SprintMetrics({ metrics }) {
   )
 }
 
-function PastWinners({ winners }) {
+function PastWinners({ winners, onPickSprint }) {
   return (
     <div className="space-y-4">
       <h3 className="font-mono text-xs font-bold uppercase tracking-[1.2px] text-slate-arena">
         Победители прошлых спринтов
       </h3>
       <div className="overflow-hidden rounded-xl border border-plantation bg-timber">
-        {winners.map((w, i) => (
-          <div
-            key={`${w.sprintRank}-${w.handle}`}
-            className={[
-              'group flex items-center gap-4 px-4 py-4 transition-colors duration-150 ease-out max-[360px]:gap-3 max-[360px]:px-3 max-[360px]:py-3 hover:bg-white/[0.02]',
-              i > 0 ? 'border-t border-plantation' : '',
-            ].join(' ')}
-          >
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-plantation bg-[#1E293B] font-mono text-xs font-bold text-gull transition-[border-color,color,background-color] duration-300 group-hover:border-turquoise/70 group-hover:bg-turquoise/10 group-hover:text-turquoise">
-              {w.sprintRank}
+        {winners.map((w, i) => {
+          const rowClass = [
+            'group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors duration-150 ease-out max-[360px]:gap-3 max-[360px]:px-3 max-[360px]:py-3',
+            onPickSprint && w.sprintId
+              ? 'cursor-pointer hover:bg-white/[0.02]'
+              : 'hover:bg-white/[0.02]',
+            i > 0 ? 'border-t border-plantation' : '',
+          ].join(' ')
+          const inner = (
+            <>
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-plantation bg-[#1E293B] font-mono text-xs font-bold text-gull transition-[border-color,color,background-color] duration-300 group-hover:border-turquoise/70 group-hover:bg-turquoise/10 group-hover:text-turquoise">
+                {w.sprintRank}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-mystic transition-colors duration-300 group-hover:text-white">
+                  {w.title}
+                </p>
+                <p className="font-mono text-xs text-turquoise">@{w.handle}</p>
+              </div>
+              <MaterialIcon
+                name="chevron_right"
+                size={18}
+                className="shrink-0 text-fiord transition-[transform,color] duration-300 group-hover:translate-x-0.5 group-hover:text-gull"
+              />
+            </>
+          )
+          if (onPickSprint && w.sprintId) {
+            return (
+              <button
+                key={w.sprintId}
+                type="button"
+                className={rowClass}
+                onClick={() => onPickSprint(w.sprintId)}
+              >
+                {inner}
+              </button>
+            )
+          }
+          return (
+            <div key={`${w.sprintRank}-${w.handle}`} className={rowClass}>
+              {inner}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-mystic transition-colors duration-300 group-hover:text-white">
-                {w.title}
-              </p>
-              <p className="font-mono text-xs text-turquoise">@{w.handle}</p>
-            </div>
-            <MaterialIcon
-              name="chevron_right"
-              size={18}
-              className="shrink-0 text-fiord transition-[transform,color] duration-300 group-hover:translate-x-0.5 group-hover:text-gull"
-            />
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -440,6 +460,76 @@ function hallSprintCalendarLabel(sprint) {
   return sprint.completedLabel || '—'
 }
 
+/** Как в legacy: #0 — «самый старый» в списке вкладок, последний номер у первого таба. */
+function hallTabRankZeroBased(visibleCount, indexInVisible) {
+  if (visibleCount <= 0 || indexInVisible < 0 || indexInVisible >= visibleCount) return 0
+  return visibleCount - 1 - indexInVisible
+}
+
+/** Сайдбар: победители всех спринтов, кроме выбранного (по данным того же ответа /hall). */
+function buildPastWinnersForSelection(sprints, selectedId) {
+  if (!Array.isArray(sprints) || !selectedId) return []
+  return sprints
+    .filter((s) => s.id !== selectedId && (s.solutions?.length ?? 0) > 0)
+    .map((s) => {
+      const idx = sprints.findIndex((x) => x.id === s.id)
+      const top = s.solutions?.[0]
+      return {
+        sprintRank: `#${hallTabRankZeroBased(sprints.length, idx)}`,
+        title: s.title,
+        handle: top?.handle ?? '—',
+        sprintId: s.id,
+      }
+    })
+}
+
+function HallSprintTabs({ sprints, selectedId, onSelect }) {
+  const n = sprints.length
+  if (n === 0) return null
+  return (
+    <div
+      role="tablist"
+      aria-label="Спринты"
+      className="flex min-h-[48px] gap-1 overflow-x-auto border-b border-plantation [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      {sprints.map((s, i) => {
+        const rank = hallTabRankZeroBased(n, i)
+        const selected = s.id === selectedId
+        const label = (s.tabLabel && String(s.tabLabel).trim()) || s.heroTitle || s.title
+        return (
+          <button
+            key={s.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            tabIndex={0}
+            id={`hall-tab-${s.id}`}
+            onClick={() => onSelect(s.id)}
+            className={[
+              'flex min-w-0 shrink-0 items-center gap-2 border-b-2 px-3 py-3 font-sans text-sm font-semibold transition-colors duration-150 max-[360px]:px-2 max-[360px]:py-2 max-[360px]:text-xs',
+              selected
+                ? 'border-turquoise text-turquoise'
+                : 'border-transparent text-gull hover:border-fiord hover:text-catskill',
+            ].join(' ')}
+          >
+            {s.tabIcon ? (
+              <MaterialIcon
+                name={s.tabIcon}
+                size={18}
+                opticalSize={18}
+                className={selected ? 'text-turquoise' : 'text-gull'}
+              />
+            ) : null}
+            <span className="font-mono shrink-0 text-xs font-bold">#{rank}</span>
+            <span className="truncate">{label}</span>
+            {s.arenaActive ? <span className="sr-only">, активная арена</span> : null}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function HallOfFamePage() {
   const { user } = useAuth()
   const qc = useQueryClient()
@@ -447,6 +537,7 @@ export function HallOfFamePage() {
   const [loadMoreClicked, setLoadMoreClicked] = useState(false)
   const [briefOpen, setBriefOpen] = useState(false)
   const [likeError, setLikeError] = useState(null)
+  const [selectedSprintId, setSelectedSprintId] = useState(null)
 
   const likeMutation = useMutation({
     mutationFn: async ({ id, liked }) => {
@@ -480,10 +571,24 @@ export function HallOfFamePage() {
       : 'Ошибка загрузки'
     : null
 
-  /** API отдаёт уже отфильтрованный список: арена первая, далее завершённые с решениями. В UI показываем только первый. */
-  const activeSprint = data?.sprints?.[0] ?? null
+  const sprintsList = useMemo(() => data?.sprints ?? [], [data?.sprints])
 
-  const solutionsList = activeSprint?.solutions ?? []
+  useEffect(() => {
+    const list = data?.sprints
+    if (!list?.length) return
+    setSelectedSprintId((prev) => (prev && list.some((s) => s.id === prev) ? prev : list[0].id))
+  }, [data?.sprints])
+
+  const selectedSprint =
+    sprintsList.find((s) => s.id === selectedSprintId) ?? sprintsList[0] ?? null
+
+  const pastWinnersForSidebar = useMemo(
+    () => buildPastWinnersForSelection(sprintsList, selectedSprint?.id),
+    [sprintsList, selectedSprint?.id]
+  )
+
+  /** API отдаёт массив спринтов: арена первая, далее завершённые с решениями; выбор таба — на клиенте. */
+  const solutionsList = selectedSprint?.solutions ?? []
 
   if (!user) return null
 
@@ -533,15 +638,23 @@ export function HallOfFamePage() {
                 </p>
               </header>
 
-              {activeSprint ? (
+              {sprintsList.length > 0 ? (
+                <HallSprintTabs
+                  sprints={sprintsList}
+                  selectedId={selectedSprintId}
+                  onSelect={setSelectedSprintId}
+                />
+              ) : null}
+
+              {selectedSprint ? (
                 <section className="relative isolate overflow-hidden rounded-xl border border-plantation bg-timber px-6 pb-6 pt-8 max-[360px]:px-4 max-[360px]:pb-4 max-[360px]:pt-5 md:px-6 md:pb-6 md:pt-8 lg:px-8 lg:pb-8 lg:pt-10">
                   <div className="relative z-[1] flex flex-col gap-6 max-[360px]:gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="space-y-4 max-[360px]:space-y-3">
                       <h2 className="text-2xl font-bold leading-8 text-white max-[360px]:text-xl max-[360px]:leading-7 md:text-[30px] md:leading-9">
-                        {activeSprint.heroTitle}
+                        {selectedSprint.heroTitle}
                       </h2>
                       <div className="flex flex-wrap items-center gap-2">
-                        {activeSprint.tags?.map((tag) => (
+                        {selectedSprint.tags?.map((tag) => (
                           <span
                             key={tag}
                             className="rounded-md border border-[#334155] bg-aztec px-2.5 py-1 font-mono text-xs text-catskill max-[360px]:text-[11px]"
@@ -551,7 +664,7 @@ export function HallOfFamePage() {
                         ))}
                         <span className="flex items-center gap-1 rounded-md border border-[#334155] bg-aztec px-2.5 py-1 font-mono text-xs text-gull max-[360px]:text-[11px]">
                           <MaterialIcon name="event" size={12} className="text-gull" />
-                          {hallSprintCalendarLabel(activeSprint)}
+                          {hallSprintCalendarLabel(selectedSprint)}
                         </span>
                       </div>
                     </div>
@@ -569,7 +682,7 @@ export function HallOfFamePage() {
 
               <div className="grid grid-cols-1 gap-8 max-[360px]:gap-6 xl:grid-cols-[minmax(0,1fr)_418px] xl:items-start">
                 <div className="flex min-w-0 flex-col gap-4">
-                  {activeSprint ? (
+                  {selectedSprint ? (
                     <>
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
                         <h2 className="text-lg font-bold leading-7 text-catskill">
@@ -622,8 +735,15 @@ export function HallOfFamePage() {
                 </div>
 
                 <aside className="flex min-w-0 flex-col gap-8">
-                  {activeSprint?.metrics ? <SprintMetrics metrics={activeSprint.metrics} /> : null}
-                  {data?.pastWinners?.length ? <PastWinners winners={data.pastWinners} /> : null}
+                  {selectedSprint?.metrics ? (
+                    <SprintMetrics metrics={selectedSprint.metrics} />
+                  ) : null}
+                  {pastWinnersForSidebar.length > 0 ? (
+                    <PastWinners
+                      winners={pastWinnersForSidebar}
+                      onPickSprint={setSelectedSprintId}
+                    />
+                  ) : null}
                   {data?.quote ? <QuoteCard quote={data.quote} /> : null}
                 </aside>
               </div>
@@ -634,7 +754,7 @@ export function HallOfFamePage() {
       <SprintBriefModal
         open={briefOpen}
         onClose={() => setBriefOpen(false)}
-        sprint={activeSprint}
+        sprint={selectedSprint}
       />
       <AppFooter />
     </div>
