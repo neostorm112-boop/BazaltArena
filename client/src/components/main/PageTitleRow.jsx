@@ -19,11 +19,11 @@ export function PageTitleRow({
       <div className="flex min-w-0 flex-1 items-center gap-3 max-[360px]:gap-2 md:gap-4">
         <MaterialIcon
           name={titleIconName(tabIcon)}
-          size={20}
-          opticalSize={20}
+          size={22}
+          opticalSize={22}
           className="shrink-0 text-turquoise"
         />
-        <h1 className="max-w-[198px] text-balance text-[22px] font-semibold leading-[28px] tracking-[-0.5px] text-catskill max-[360px]:max-w-[170px] max-[360px]:text-[18px] max-[360px]:leading-[24px] sm:max-w-[220px] md:max-w-[276px] lg:max-w-none">
+        <h1 className="max-w-[198px] text-balance text-[20px] font-bold leading-[28px] tracking-[-0.5px] text-catskill max-[360px]:max-w-[170px] max-[360px]:text-[16px] max-[360px]:leading-[22px] max-[360px]:tracking-[-0.2px] sm:max-w-[220px] md:max-w-[276px] lg:max-w-none">
           {title}
         </h1>
       </div>

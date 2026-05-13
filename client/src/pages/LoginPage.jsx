@@ -144,6 +144,23 @@ export function LoginPage() {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-aztec font-sans text-catskill">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(13, 204, 242, 0.05) 2.5%, rgba(13, 204, 242, 0) 2.5%), linear-gradient(90deg, rgba(13, 204, 242, 0.05) 2.5%, rgba(13, 204, 242, 0) 2.5%)',
+        }}
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -left-40 top-[25%] hidden h-96 w-96 rounded-full bg-turquoise/10 blur-[32px] md:block"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -right-40 top-[32%] hidden h-96 w-96 rounded-full bg-spring/5 blur-[32px] md:block"
+        aria-hidden
+      />
+
       <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1400px] flex-col justify-center px-6 py-10 max-[360px]:px-3 max-[360px]:py-6 md:px-10 md:py-[70px] lg:flex-row lg:items-center lg:gap-16 xl:gap-[100px]">
         <section className="mb-10 hidden w-full max-w-md flex-col gap-8 lg:mb-0 lg:flex xl:max-w-[448px]">
           <div className="inline-flex w-fit items-center gap-2 rounded border border-turquoise/30 bg-turquoise/5 px-3 py-1.5">
@@ -153,9 +170,8 @@ export function LoginPage() {
             </span>
           </div>
 
-          <h1 className="text-4xl font-bold leading-[1.1] tracking-[-1.2px] text-white xl:text-5xl xl:leading-[1.05]">
-            Войди в <span className="text-turquoise">арену</span>.<br />
-            Покажи код.
+          <h1 className="text-4xl font-bold leading-[1.15] tracking-[-1.2px] text-white xl:text-5xl xl:leading-[60px]">
+            Войди в <span className="text-turquoise">арену</span>. Покажи код.
           </h1>
 
           <p className="max-w-[448px] font-mono text-sm font-normal leading-[23px] text-gull">
@@ -210,22 +226,27 @@ export function LoginPage() {
         </section>
 
         <section className="mx-auto w-full max-w-[448px] shrink-0 max-[360px]:max-w-full lg:mx-0">
-          <div className="relative isolate overflow-hidden rounded-2xl border border-plantation bg-timber p-8 max-[360px]:p-4">
+          <div className="relative isolate overflow-hidden rounded-2xl border border-plantation bg-[rgba(26,46,50,0.3)] p-8 backdrop-blur-sm max-[360px]:p-4">
+            <div
+              className="pointer-events-none absolute -right-24 -top-24 size-48 rounded-full bg-turquoise/5 blur-[32px]"
+              aria-hidden
+            />
+
             <div className="relative z-[1] flex flex-col gap-6 max-[360px]:gap-4">
               <div className="flex items-start justify-between gap-4 max-[360px]:gap-3">
                 <div className="min-w-0 space-y-1">
                   <p className="font-mono text-[10px] font-normal uppercase leading-[15px] tracking-[1px] text-slate-arena">
                     // auth.access()
                   </p>
-                  <h2 className="text-xl font-semibold leading-7 tracking-[-0.3px] text-white max-[360px]:text-lg">
+                  <h2 className="text-2xl font-bold leading-8 text-white max-[360px]:text-[28px] max-[360px]:leading-7">
                     Авторизация
                   </h2>
                 </div>
                 <div
-                  className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-turquoise/25 bg-turquoise/10 max-[360px]:size-10"
+                  className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-turquoise/30 bg-turquoise/10 max-[360px]:size-11"
                   aria-hidden
                 >
-                  <MaterialIcon name="lock" size={20} opticalSize={20} className="text-turquoise" />
+                  <MaterialIcon name="lock" size={24} opticalSize={24} className="text-turquoise" />
                 </div>
               </div>
 

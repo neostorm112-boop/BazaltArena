@@ -39,21 +39,28 @@ function SolutionCard({ solution, isWinner, onLikeClick, likePending }) {
   return (
     <article
       className={[
-        'group relative isolate overflow-hidden rounded-xl border bg-timber p-5 max-[360px]:p-4 md:p-6 transition-[border-color] duration-150 ease-out',
+        'group relative isolate overflow-hidden rounded-xl border bg-timber p-5 max-[360px]:p-4 md:p-6 transition-[border-color,box-shadow] duration-200 ease-out',
         isWinner
-          ? 'border border-[rgba(234,179,8,0.35)]'
-          : 'border border-plantation hover:border-fiord',
+          ? 'border-2 border-[rgba(255,215,0,0.4)] shadow-[0_0_20px_rgba(255,215,0,0.15),inset_0_0_10px_2px_rgba(255,215,0,0.1)]'
+          : 'border border-plantation hover:border-white/35',
       ].join(' ')}
     >
+      {isWinner ? (
+        <div
+          className="pointer-events-none absolute -right-[38px] -top-[38px] size-40 rounded-full bg-[rgba(234,179,8,0.1)] blur-[32px]"
+          aria-hidden
+        />
+      ) : null}
+
       <div className="relative z-[1] flex flex-col gap-6 max-[360px]:gap-4 md:flex-row md:items-center md:justify-between md:gap-6">
         <div className="flex min-w-0 items-center gap-5 max-[360px]:gap-3">
           <div className="relative shrink-0">
             <div
               className={[
-                'flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-aztec max-[360px]:size-14',
+                'flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/[0.002] max-[360px]:size-14',
                 isWinner
-                  ? 'border border-[rgba(234,179,8,0.4)]'
-                  : 'border border-plantation transition-colors duration-150 group-hover:border-fiord',
+                  ? 'border-2 border-[rgba(234,179,8,0.5)] shadow-[0_10px_15px_-3px_rgba(234,179,8,0.1),0_4px_6px_-4px_rgba(234,179,8,0.1)]'
+                  : 'border border-plantation transition-colors duration-200 group-hover:border-white/35',
               ].join(' ')}
             >
               <img
@@ -115,7 +122,7 @@ function SolutionCard({ solution, isWinner, onLikeClick, likePending }) {
           <div
             className={[
               'flex items-center rounded-lg border border-plantation bg-aztec/50 p-1 transition-[border-color,background-color] duration-200',
-              isWinner ? '' : 'group-hover:border-white/30 group-hover:bg-plantation/70',
+              isWinner ? '' : 'group-hover:border-white/30 group-hover:bg-[#0F2732]/70',
             ].join(' ')}
           >
             <a
@@ -174,8 +181,8 @@ function SolutionCard({ solution, isWinner, onLikeClick, likePending }) {
             className={[
               'inline-flex items-center gap-2 rounded-lg border px-3 py-2 font-mono text-sm font-bold transition max-[360px]:px-2 max-[360px]:py-1.5 max-[360px]:text-xs',
               likedByMe
-                ? 'border-turquoise/30 bg-turquoise/15 text-half-baked hover:border-turquoise/50 hover:bg-turquoise/20'
-                : 'border-plantation bg-aztec text-gull hover:border-fiord hover:text-catskill',
+                ? 'border-turquoise/30 bg-turquoise/20 text-turquoise hover:border-turquoise/55 hover:bg-turquoise/30 hover:text-[#67E8F9] hover:shadow-[0_0_16px_rgba(13,204,242,0.28)]'
+                : 'border-[rgba(71,85,105,0.5)] bg-[rgba(51,65,85,0.3)] text-gull hover:text-white',
               likePending ? 'pointer-events-none opacity-60' : '',
             ].join(' ')}
           >
@@ -251,10 +258,9 @@ function PastWinners({ winners, onPickSprint }) {
       <div className="overflow-hidden rounded-xl border border-plantation bg-timber">
         {winners.map((w, i) => {
           const rowClass = [
-            'group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors duration-150 ease-out max-[360px]:gap-3 max-[360px]:px-3 max-[360px]:py-3',
-            onPickSprint && w.sprintId
-              ? 'cursor-pointer hover:bg-white/[0.02]'
-              : 'hover:bg-white/[0.02]',
+            'group flex w-full items-center gap-4 px-4 py-4 text-left transition-[background-color,box-shadow] duration-300 ease-out max-[360px]:gap-3 max-[360px]:px-3 max-[360px]:py-3',
+            'hover:bg-[linear-gradient(90deg,rgba(13,204,242,0.08)_0%,rgba(13,204,242,0.02)_42%,rgba(13,204,242,0)_100%)]',
+            onPickSprint && w.sprintId ? 'cursor-pointer' : '',
             i > 0 ? 'border-t border-plantation' : '',
           ].join(' ')
           const inner = (
@@ -484,48 +490,58 @@ function buildPastWinnersForSelection(sprints, selectedId) {
 }
 
 function HallSprintTabs({ sprints, selectedId, onSelect }) {
-  const n = sprints.length
-  if (n === 0) return null
+  if (!sprints?.length) return null
   return (
-    <div
-      role="tablist"
-      aria-label="Спринты"
-      className="flex min-h-[48px] gap-1 overflow-x-auto border-b border-plantation [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-    >
-      {sprints.map((s, i) => {
-        const rank = hallTabRankZeroBased(n, i)
-        const selected = s.id === selectedId
-        const label = (s.tabLabel && String(s.tabLabel).trim()) || s.heroTitle || s.title
-        return (
-          <button
-            key={s.id}
-            type="button"
-            role="tab"
-            aria-selected={selected}
-            tabIndex={0}
-            id={`hall-tab-${s.id}`}
-            onClick={() => onSelect(s.id)}
-            className={[
-              'flex min-w-0 shrink-0 items-center gap-2 border-b-2 px-3 py-3 font-sans text-sm font-semibold transition-colors duration-150 max-[360px]:px-2 max-[360px]:py-2 max-[360px]:text-xs',
-              selected
-                ? 'border-turquoise text-turquoise'
-                : 'border-transparent text-gull hover:border-fiord hover:text-catskill',
-            ].join(' ')}
-          >
-            {s.tabIcon ? (
-              <MaterialIcon
-                name={s.tabIcon}
-                size={18}
-                opticalSize={18}
-                className={selected ? 'text-turquoise' : 'text-gull'}
-              />
-            ) : null}
-            <span className="font-mono shrink-0 text-xs font-bold">#{rank}</span>
-            <span className="truncate">{label}</span>
-            {s.arenaActive ? <span className="sr-only">, активная арена</span> : null}
-          </button>
-        )
-      })}
+    <div className="border-b border-plantation/80">
+      <div
+        role="tablist"
+        aria-label="Спринты"
+        className="flex gap-8 overflow-x-auto pb-px max-[360px]:gap-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {sprints.map((sp) => {
+          const active = sp.id === selectedId
+          const tabTitle = (sp.tabLabel && String(sp.tabLabel).trim()) || sp.heroTitle || sp.title
+          const showTargetIcon =
+            active &&
+            (sp.arenaActive ||
+              String(sp.tabLabel ?? '')
+                .toLowerCase()
+                .includes('basalt'))
+          return (
+            <button
+              key={sp.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              id={`hall-tab-${sp.id}`}
+              onClick={() => onSelect(sp.id)}
+              className={[
+                'flex shrink-0 items-center gap-2 border-b-2 pb-3 text-base transition max-[360px]:gap-1.5 max-[360px]:text-sm',
+                active
+                  ? 'border-turquoise font-bold text-turquoise'
+                  : 'border-transparent font-normal text-slate-arena hover:border-[#334155] hover:text-gull',
+              ].join(' ')}
+            >
+              {showTargetIcon ? (
+                <MaterialIcon
+                  name="radio_button_checked"
+                  size={18}
+                  opticalSize={18}
+                  className="text-turquoise"
+                />
+              ) : sp.tabIcon ? (
+                <MaterialIcon
+                  name={sp.tabIcon}
+                  size={18}
+                  opticalSize={18}
+                  className={active ? 'text-turquoise' : 'text-slate-arena'}
+                />
+              ) : null}
+              {tabTitle}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -648,6 +664,10 @@ export function HallOfFamePage() {
 
               {selectedSprint ? (
                 <section className="relative isolate overflow-hidden rounded-xl border border-plantation bg-timber px-6 pb-6 pt-8 max-[360px]:px-4 max-[360px]:pb-4 max-[360px]:pt-5 md:px-6 md:pb-6 md:pt-8 lg:px-8 lg:pb-8 lg:pt-10">
+                  <div
+                    className="pointer-events-none absolute inset-y-2 right-px z-0 w-64 bg-gradient-to-l from-turquoise/5 to-transparent"
+                    aria-hidden
+                  />
                   <div className="relative z-[1] flex flex-col gap-6 max-[360px]:gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="space-y-4 max-[360px]:space-y-3">
                       <h2 className="text-2xl font-bold leading-8 text-white max-[360px]:text-xl max-[360px]:leading-7 md:text-[30px] md:leading-9">
@@ -671,9 +691,13 @@ export function HallOfFamePage() {
                     <button
                       type="button"
                       onClick={() => setBriefOpen(true)}
-                      className="inline-flex h-11 w-[174px] shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-turquoise px-5 text-sm font-semibold leading-5 text-white transition-colors duration-150 hover:bg-[#0ab0d4] max-[360px]:w-full lg:self-end"
+                      className="relative z-[2] inline-flex h-12 w-[174px] shrink-0 cursor-pointer items-center justify-center gap-2 self-start rounded-lg bg-turquoise px-5 py-2.5 text-sm font-bold leading-5 text-aztec shadow-[0_10px_15px_-3px_rgba(13,204,242,0.25),0_4px_6px_-4px_rgba(13,204,242,0.25)] transition-[box-shadow,filter] duration-300 hover:brightness-110 hover:shadow-[0_12px_18px_-3px_rgba(13,204,242,0.32),0_6px_10px_-4px_rgba(13,204,242,0.32)] active:brightness-95 max-[360px]:h-11 max-[360px]:w-full lg:self-end"
                     >
-                      <MaterialIcon name="description" size={16} className="text-white" />
+                      <span
+                        className="pointer-events-none absolute inset-0 rounded-lg bg-white/[0.002]"
+                        aria-hidden
+                      />
+                      <MaterialIcon name="description" size={18} className="text-aztec" />
                       Открыть бриф
                     </button>
                   </div>

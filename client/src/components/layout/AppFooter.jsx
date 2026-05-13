@@ -3,7 +3,7 @@ import { getMeta } from '../../api/basaltApi.js'
 import { MaterialIcon } from '../ui/MaterialIcon.jsx'
 
 const metaText = 'font-mono text-[11px] leading-4 lg:text-[12px]'
-const pipeClass = `${metaText} text-fiord`
+const pipeClass = `${metaText} text-[#334155]`
 const legalText = `${metaText} max-md:max-w-[min(100%,14rem)] cursor-default whitespace-nowrap text-center text-[11px] font-bold uppercase leading-snug text-slate-arena transition-colors hover:text-turquoise max-[360px]:text-[10px] md:text-[11px] md:leading-4 lg:text-[12px] [font-synthesis:none]`
 const metaBlock = `${metaText} text-slate-arena [font-synthesis:none]`
 

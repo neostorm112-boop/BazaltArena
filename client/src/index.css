@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 @theme {
-  /* Палитра и типографика как в legacy Basalt-Arena (UsmanGamidov) */
+  /* Значения как в github.com/UsmanGamidov/Basalt-Arena — client/src/index.css */
   --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --font-onest: 'Onest', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -65,13 +65,6 @@
   body {
     @apply m-0 min-h-screen bg-aztec font-sans text-catskill/92;
     font-synthesis: none;
-  }
-
-  button,
-  input,
-  textarea,
-  select {
-    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   }
 
   a,

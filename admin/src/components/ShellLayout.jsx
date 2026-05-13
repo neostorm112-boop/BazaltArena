@@ -33,13 +33,14 @@ export function ShellLayout() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-plantation bg-gradient-to-b from-timber to-aztec p-4">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-plantation bg-gradient-to-b from-timber via-[#152a2f] to-aztec p-4 shadow-[4px_0_24px_-8px_rgba(0,0,0,0.35)]">
         <div className="mb-8 px-2">
-          <div className="font-mono text-[10px] font-bold uppercase tracking-[0.25em] text-turquoise">
-            Basalt
+          <div className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-turquoise">
+            Basalt Arena
           </div>
-          <div className="mt-1 text-lg font-semibold tracking-tight text-catskill">
-            Админка арены
+          <div className="mt-1 text-lg font-bold tracking-tight text-white">Админка</div>
+          <div className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-slate-arena">
+            v4.2
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
@@ -55,7 +56,7 @@ export function ShellLayout() {
           Выйти
         </Button>
       </aside>
-      <main className="min-w-0 flex-1 overflow-auto bg-aztec/50 p-6 md:p-10">
+      <main className="min-w-0 flex-1 overflow-auto bg-aztec p-6 md:p-10">
         <Outlet />
       </main>
     </div>
