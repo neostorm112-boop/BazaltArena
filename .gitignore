@@ -1,0 +1,49 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.python-version
+
+# Node
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build artifacts
+dist/
+**/dist/
+dist-ssr/
+coverage/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# Runtime
+*.log
+*.tmp
+*.temp
+
+# Local agent/runtime state
+.claude/

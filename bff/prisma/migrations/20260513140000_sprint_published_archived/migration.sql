@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Sprint" ADD COLUMN "published" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "Sprint" ADD COLUMN "archived" BOOLEAN NOT NULL DEFAULT false;

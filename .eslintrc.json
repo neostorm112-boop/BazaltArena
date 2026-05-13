@@ -1,0 +1,35 @@
+{
+  "root": true,
+  "ignorePatterns": ["node_modules/", "dist/", "coverage/", ".claude/", ".cursor/"],
+  "overrides": [
+    {
+      "files": ["bff/src/**/*.ts", "bff/test/**/*.ts"],
+      "parser": "@typescript-eslint/parser",
+      "parserOptions": {
+        "project": ["bff/tsconfig.json"],
+        "sourceType": "module"
+      },
+      "plugins": ["@typescript-eslint"],
+      "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "error",
+        "@typescript-eslint/consistent-type-imports": "error",
+        "@typescript-eslint/no-unused-vars": [
+          "error",
+          { "argsIgnorePattern": "^_", "varsIgnorePattern": "^[A-Z_]" }
+        ]
+      }
+    },
+    {
+      "files": ["client/src/**/*.{js,jsx}", "admin/src/**/*.{js,jsx}"],
+      "extends": ["eslint:recommended"],
+      "env": {
+        "browser": true,
+        "es2022": true
+      },
+      "rules": {
+        "no-unused-vars": ["error", { "varsIgnorePattern": "^[A-Z_]" }]
+      }
+    }
+  ]
+}

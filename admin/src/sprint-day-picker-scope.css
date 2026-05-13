@@ -1,0 +1,37 @@
+/**
+ * Переменные на .rdp-root из библиотеки перебивают наследование с внешнего div —
+ * задаём тёмную тему и мягкое выделение диапазона прямо на корне внутри оболочки.
+ */
+.sprint-day-picker-scope .rdp-root {
+  --rdp-accent-color: #a78bfa;
+  --rdp-accent-background-color: rgba(124, 92, 252, 0.18);
+  --rdp-range_middle-background-color: rgba(124, 92, 252, 0.12);
+  --rdp-range_middle-color: #fafafa;
+  --rdp-range_start-color: #0c0c0e;
+  --rdp-range_end-color: #0c0c0e;
+  --rdp-range_start-date-background-color: #c4b5fd;
+  --rdp-range_end-date-background-color: #c4b5fd;
+  --rdp-day_button-border-radius: 9999px;
+  --rdp-today-color: #a78bfa;
+}
+
+/* Середина диапазона: спокойный фон ячейки + скругление «плашки» */
+.sprint-day-picker-scope .rdp-day.rdp-range_middle {
+  border-radius: 0.5rem;
+}
+
+/* У библиотеки border-radius: unset — возвращаем капсулу у цифры */
+.sprint-day-picker-scope .rdp-range_middle .rdp-day_button {
+  border-radius: 0.45rem !important;
+  color: var(--rdp-range_middle-color) !important;
+}
+
+/* Старт/финиш: читаемый контраст, без «неонового» пересвета */
+.sprint-day-picker-scope .rdp-range_start .rdp-day_button,
+.sprint-day-picker-scope .rdp-range_end .rdp-day_button {
+  color: var(--rdp-range_start-color) !important;
+}
+
+.sprint-day-picker-scope .rdp-range_start.rdp-range_end .rdp-day_button {
+  border-radius: 9999px !important;
+}

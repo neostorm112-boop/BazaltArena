@@ -1,0 +1,184 @@
+// Basalt Arena BFF schema.
+// Source of truth for the public API; админские сценарии — через BFF `/api/v1/admin` и приложение `admin`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum SubmissionStatus {
+  PENDING
+  REVIEWED
+  ACCEPTED
+  REJECTED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  handle        String   @unique
+  passwordHash  String
+  role          UserRole @default(USER)
+  avatarUrl     String
+  bio           String   @default("")
+  skillsLabel   String   @default("")
+  realName      String   @default("")
+  stack         String[] @default([])
+  telegram      String   @default("")
+  githubUrl     String   @default("")
+  moneyEarned   Int      @default(0)
+  /// UTC YYYY-MM; при смене месяца в /me фиксируются снимки для дельт карточек.
+  statsMonthKey                 String   @default("")
+  pointsAtMonthStart            Int      @default(0)
+  moneyAtMonthStart             Int      @default(0)
+  sprintsAcceptedAtMonthStart   Int      @default(0)
+  points        Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  submissions   Submission[]
+  likes         SolutionLike[]
+  achievements  UserAchievement[]
+  sprintAccesses SprintAccess[]
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+
+  @@index([points])
+}
+
+/// Уведомления участнику (например, после проверки решения в админке).
+model Notification {
+  id           String    @id @default(cuid())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  kind         String    @default("SUBMISSION_REVIEW")
+  title        String
+  body         String
+  submissionId String?
+  readAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  actorId   String
+  action    String
+  details   Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorId])
+}
+
+model Sprint {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  title           String
+  tabLabel        String
+  tabIcon         String?
+  completedLabel  String
+  tags            String[] @default([])
+  active          Boolean  @default(false)
+  /// Виден на клиенте (зал, списки). Черновик = false.
+  published       Boolean  @default(true)
+  /// Скрыт из публичного UI, остаётся в админке.
+  archived        Boolean  @default(false)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  brief           Json
+  metrics         Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  submissions     Submission[]
+  accesses        SprintAccess[]
+
+  @@index([active])
+  @@index([published, archived])
+}
+
+/// Per-user access to a sprint: submit and/or view hall/solutions for that sprint.
+/// USER: no row => canView true, canSubmit false. Row overrides both flags.
+model SprintAccess {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  sprint     Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  sprintId   String
+  canSubmit  Boolean  @default(false)
+  canView    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, sprintId], name: "sprint_access_user_sprint_unique")
+  @@index([sprintId])
+}
+
+model Submission {
+  id           String           @id @default(cuid())
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  sprint       Sprint           @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  sprintId     String
+  repoUrl      String
+  demoUrl       String?
+  mentorScore   Int              @default(0)
+  /// Заметки наставника для участника (история в /me).
+  mentorComment String?          @db.Text
+  status        SubmissionStatus @default(PENDING)
+  likesCount    Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  likes        SolutionLike[]
+
+  @@unique([userId, sprintId], name: "submission_user_sprint_unique")
+  @@index([sprintId, mentorScore(sort: Desc), likesCount(sort: Desc)])
+  @@index([sprintId, likesCount(sort: Desc), mentorScore(sort: Desc)])
+}
+
+model SolutionLike {
+  id            String     @id @default(cuid())
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submissionId  String
+  createdAt     DateTime   @default(now())
+
+  @@unique([userId, submissionId], name: "solution_like_unique")
+  @@index([submissionId])
+}
+
+model Achievement {
+  id        String  @id @default(cuid())
+  slug      String  @unique
+  title     String
+  subtitle  String
+  icon      String
+
+  users     UserAchievement[]
+}
+
+model UserAchievement {
+  id             String      @id @default(cuid())
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  achievement    Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  achievementId  String
+  earnedAt       DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+}
