@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Скопировать локальную БД (схема bff) на удалённый Lightsail: пользователи, passwordHash, спринты и т.д.
+# Скопировать локальную БД (схема bff) на удалённый сервер по SSH: пользователи, passwordHash, спринты и т.д.
 # Требования: локально поднят Postgres из docker-compose; SSH-ключ; на сервере ~/bazalt-arena и Docker.
 #
 # Использование:
@@ -17,7 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 REMOTE_HOST="${REMOTE_HOST:?Set REMOTE_HOST=ubuntu@x.x.x.x}"
-SSH_KEY="${SSH_KEY:?Set SSH_KEY=/path/to/Lightsail.pem}"
+SSH_KEY="${SSH_KEY:?Set SSH_KEY=/path/to/server-key.pem}"
 if [[ ! -f "$SSH_KEY" ]]; then
   echo "SSH key not found: $SSH_KEY" >&2
   exit 1
@@ -57,4 +57,4 @@ sleep 2
 "${SSH_BASE[@]}" 'curl -fsS http://127.0.0.1/api/v1/health && echo'
 
 echo "==> Done. Log in on prod with the same emails/passwords as on your local DB."
-echo "    Note: JWT from before sync are invalid if JWT secrets in server .env differ from local (they do on Lightsail)."
+echo "    Note: JWT from before sync are invalid if JWT secrets in server .env differ from local."
