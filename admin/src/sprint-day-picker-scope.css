@@ -3,16 +3,16 @@
  * задаём тёмную тему и мягкое выделение диапазона прямо на корне внутри оболочки.
  */
 .sprint-day-picker-scope .rdp-root {
-  --rdp-accent-color: #a78bfa;
-  --rdp-accent-background-color: rgba(124, 92, 252, 0.18);
-  --rdp-range_middle-background-color: rgba(124, 92, 252, 0.12);
+  --rdp-accent-color: var(--color-turquoise);
+  --rdp-accent-background-color: rgba(13, 204, 242, 0.2);
+  --rdp-range_middle-background-color: rgba(13, 204, 242, 0.12);
   --rdp-range_middle-color: #fafafa;
-  --rdp-range_start-color: #0c0c0e;
-  --rdp-range_end-color: #0c0c0e;
-  --rdp-range_start-date-background-color: #c4b5fd;
-  --rdp-range_end-date-background-color: #c4b5fd;
+  --rdp-range_start-color: var(--color-aztec);
+  --rdp-range_end-color: var(--color-aztec);
+  --rdp-range_start-date-background-color: var(--color-half-baked);
+  --rdp-range_end-date-background-color: var(--color-half-baked);
   --rdp-day_button-border-radius: 9999px;
-  --rdp-today-color: #a78bfa;
+  --rdp-today-color: var(--color-turquoise);
 }
 
 /* Середина диапазона: спокойный фон ячейки + скругление «плашки» */
