@@ -695,17 +695,6 @@ export function SprintsPage() {
           >
             Дублировать
           </Button>
-          {!s.archived ? (
-            <Button
-              type="button"
-              variant="outline"
-              className={cn(sprintRowBtn, 'text-red-300/90')}
-              disabled={archiveMutation.isPending}
-              onClick={() => setArchiveConfirm({ id: s.id, title: s.title })}
-            >
-              В архив
-            </Button>
-          ) : null}
         </div>
       </li>
     )
@@ -719,8 +708,9 @@ export function SprintsPage() {
             Спринты
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-gull">
-            Секции отражают очередь боёв и календарь. Редактирование — в боковой панели. Короткий
-            адрес в ссылке подставляется из названия; при необходимости поправьте его вручную.
+            Секции отражают очередь боёв и календарь. Статус (включая архив) — в списке у строки;
+            архив подтверждается в диалоге. Редактирование — в боковой панели. Короткий адрес в
+            ссылке подставляется из названия; при необходимости поправьте его вручную.
           </p>
         </div>
         <Button variant="gradient" onClick={openCreate}>
