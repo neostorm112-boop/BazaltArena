@@ -22,6 +22,11 @@ export function createLikeService(deps: {
   submissions: SubmissionRepository
   sprintAccess: SprintAccessRepository
   onAfterLikeChange?: (sprintId: string) => Promise<void>
+  onAfterLikeMutation?: (input: {
+    submissionId: string
+    likes: number
+    liked: boolean
+  }) => Promise<void>
   memberAudit?: MemberAudit
 }): LikeService {
   async function readLikeState(submissionId: string) {
@@ -81,6 +86,17 @@ export function createLikeService(deps: {
       }
 
       await deps.onAfterLikeChange?.(submission.sprintId)
+      if (mutated && deps.onAfterLikeMutation) {
+        try {
+          await deps.onAfterLikeMutation({
+            submissionId: submission.id,
+            likes: likesCount,
+            liked: true,
+          })
+        } catch {
+          /* achievement check must not break like flow */
+        }
+      }
       return { submissionId: submission.id, liked: true, likes: likesCount }
     },
 

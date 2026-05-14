@@ -17,6 +17,8 @@ import { createSprintMetricsService } from './services/sprintMetricsService.js'
 import { createAdminRepository } from './repositories/adminRepo.js'
 import { createAdminService, type AdminDataChangeDetail } from './services/adminService.js'
 import { createMemberNotificationService } from './services/memberNotificationService.js'
+import { createAchievementGranter } from './services/achievementGranter.js'
+import { createMetaService } from './services/metaService.js'
 
 export interface Container {
   auth: ReturnType<typeof createAuthService>
@@ -27,6 +29,8 @@ export interface Container {
   userView: ReturnType<typeof createUserViewService>
   admin: ReturnType<typeof createAdminService>
   memberAudit: ReturnType<typeof createMemberAudit>
+  achievementGranter: ReturnType<typeof createAchievementGranter>
+  meta: ReturnType<typeof createMetaService>
 }
 
 export type BuildContainerOptions = {
@@ -43,6 +47,8 @@ export function buildContainer(prisma: PrismaClient, opts?: BuildContainerOption
   const sprintAccess = createSprintAccessRepository(prisma)
   const metrics = createSprintMetricsService(prisma)
   const memberNotifications = createMemberNotificationService(prisma)
+  const achievementGranter = createAchievementGranter(prisma)
+  const meta = createMetaService({ prisma })
   const notify = opts?.notifyDataUpdated
   const recalc = (sprintId: string) => metrics.recalculate(sprintId).catch(() => undefined)
   const recalcAndNotifyHall = async (sprintId: string) => {
@@ -68,12 +74,15 @@ export function buildContainer(prisma: PrismaClient, opts?: BuildContainerOption
       sprintAccess,
       onAfterLikeChange: recalcAndNotifyHall,
       memberAudit,
+      onAfterLikeMutation: ({ submissionId, likes: likesCount }) =>
+        achievementGranter.onLikesChanged({ submissionId, likes: likesCount }),
     }),
     submissions: createSubmissionService({
       sprints,
       submissions,
       sprintAccess,
       onAfterSubmission: recalcAndNotifyHall,
+      onAfterSubmissionUpsert: (input) => achievementGranter.onSubmissionUpsert(input),
     }),
     profiles: createProfileService({ users }),
     hall: createHallService({ prisma, sprints, submissions, likes, sprintAccess }),
@@ -88,8 +97,11 @@ export function buildContainer(prisma: PrismaClient, opts?: BuildContainerOption
       createAdminRepository(prisma),
       metrics,
       opts?.notifyDataUpdated,
-      memberNotifications
+      memberNotifications,
+      achievementGranter
     ),
     memberAudit,
+    achievementGranter,
+    meta,
   }
 }

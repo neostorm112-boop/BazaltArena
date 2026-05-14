@@ -16,6 +16,7 @@ import {
   sprintRouter,
   submissionRouter,
 } from './api/index.js'
+import { mockRouter } from './routes/mock.routes.js'
 import { buildContainer, env, logger, type Container } from './core/index.js'
 
 export interface AppOptions {
@@ -66,8 +67,14 @@ export function createApp({ prisma, container }: AppOptions): Express {
   app.use('/api/v1/solutions', solutionRouter(services))
   app.use('/api/v1/hall', hallRouter(services))
   app.use('/api/v1/admin', adminRouter(services.admin))
+  // Контракт под внешний фронт из конкурса (basalt-arena). Слушает `/api/mock/v1` и `/api/mock/v1/v2`.
+  app.use('/api/mock/v1', mockRouter(services))
 
-  app.use((_req, res) => {
+  app.use((req, res) => {
+    if ((req.originalUrl ?? req.url ?? '').startsWith('/api/mock/')) {
+      res.status(404).json({ error: 'Route not found' })
+      return
+    }
     res.status(404).json({ code: 'NOT_FOUND', message: 'Route not found' })
   })
 

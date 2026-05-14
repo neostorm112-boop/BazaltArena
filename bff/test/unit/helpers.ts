@@ -1,4 +1,4 @@
-import type { Submission, User } from '@prisma/client'
+import type { Submission, User, SprintAccess } from '@prisma/client'
 import type { SprintAccessRepository } from '../../src/repositories/sprintAccessRepo.js'
 import type { UserRepository } from '../../src/repositories/userRepo.js'
 import type { LikeRepository } from '../../src/repositories/likeRepo.js'
@@ -261,7 +261,7 @@ export function makeMockSprintAccess(): SprintAccessRepository {
         canView: input.canView,
         createdAt: new Date(),
         updatedAt: new Date(),
-      }) as import('@prisma/client').SprintAccess,
+      }) as SprintAccess,
     delete: async () => undefined,
     listBySprint: async () => [],
     listByUser: async () => [],

@@ -7,6 +7,7 @@ import RedisMock from 'ioredis-mock'
 import request from 'supertest'
 import type { Express } from 'express'
 import type { PrismaClient as PrismaClientType } from '@prisma/client'
+import type { Redis as RedisType } from 'ioredis'
 import { buildContainer } from '../../src/container.js'
 import { createApp } from '../../src/app.js'
 import { setRedisForTests } from '../../src/infra/redis.js'
@@ -52,7 +53,7 @@ conditionalDescribe('BFF integration', () => {
     const { PrismaClient } = await import('@prisma/client')
     prisma = new PrismaClient({ datasources: { db: { url } } })
 
-    setRedisForTests(new (RedisMock as unknown as typeof import('ioredis').Redis)() as never)
+    setRedisForTests(new (RedisMock as unknown as typeof RedisType)() as never)
 
     const services = buildContainer(prisma)
     await prisma.sprint.create({

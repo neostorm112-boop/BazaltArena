@@ -15,7 +15,7 @@ function formatPct(n: number): string {
 export function createSprintMetricsService(prisma: PrismaClient) {
   return {
     async recalculate(sprintId: string): Promise<void> {
-      const [total, verified] = await Promise.all([
+      const [total, verified, existing] = await Promise.all([
         prisma.submission.count({ where: { sprintId } }),
         prisma.submission.count({
           where: {
@@ -23,6 +23,7 @@ export function createSprintMetricsService(prisma: PrismaClient) {
             OR: [{ status: 'ACCEPTED' }, { status: 'REVIEWED' }],
           },
         }),
+        prisma.sprint.findUnique({ where: { id: sprintId }, select: { metrics: true } }),
       ])
       const accepted = await prisma.submission.count({ where: { sprintId, status: 'ACCEPTED' } })
       const likesSum = await prisma.submission.aggregate({
@@ -34,16 +35,24 @@ export function createSprintMetricsService(prisma: PrismaClient) {
       const successRate = total === 0 ? '—' : formatPct((accepted / total) * 100)
       const submissionsBarPct =
         total === 0 ? 0 : Math.min(100, Math.round((total / Math.max(total, 50)) * 100))
-      const metrics: SprintMetricsJson = {
+      const computed: SprintMetricsJson = {
         submissions: total,
         submissionsBarPct,
         deltaLabel: totalLikes > 0 ? `${totalLikes} лайков` : 'Метрики обновлены',
         successRate,
         verifiedSolutions: verified,
       }
+      // Сохраняем кастомные поля (например `prizeRub`), которые задаются админкой/сидом.
+      const existingObj =
+        existing?.metrics &&
+        typeof existing.metrics === 'object' &&
+        !Array.isArray(existing.metrics)
+          ? (existing.metrics as Record<string, unknown>)
+          : {}
+      const merged: Record<string, unknown> = { ...existingObj, ...computed }
       await prisma.sprint.update({
         where: { id: sprintId },
-        data: { metrics: metrics as object },
+        data: { metrics: merged as object },
       })
     },
   }

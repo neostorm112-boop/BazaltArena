@@ -83,6 +83,16 @@ async function safeAudit(
 
 import type { MemberNotificationService } from './memberNotificationService.js'
 
+export interface AdminSubmissionStatusHook {
+  onSubmissionStatusChange(input: {
+    userId: string
+    sprintId: string
+    submissionId: string
+    status: 'PENDING' | 'REVIEWED' | 'ACCEPTED' | 'REJECTED'
+    mentorScore: number
+  }): Promise<void>
+}
+
 export function createAdminService(
   db: AdminRepository,
   metrics: SprintMetricsWriter,
@@ -90,7 +100,8 @@ export function createAdminService(
   memberNotifications?: Pick<
     MemberNotificationService,
     'notifySubmissionFieldsChanged' | 'notifyBatchAcceptedToHall'
-  >
+  >,
+  submissionStatusHook?: AdminSubmissionStatusHook
 ) {
   const fire = (entity: AdminDataChangeDetail['entity']) => {
     try {
@@ -325,6 +336,21 @@ export function createAdminService(
       } catch {
         /* */
       }
+      if (submissionStatusHook) {
+        for (const t of r.accepted ?? []) {
+          try {
+            await submissionStatusHook.onSubmissionStatusChange({
+              userId: t.userId,
+              sprintId: t.sprintId,
+              submissionId: t.id,
+              status: 'ACCEPTED',
+              mentorScore: 100,
+            })
+          } catch {
+            /* */
+          }
+        }
+      }
       fire('user')
       return r
     },
@@ -389,6 +415,19 @@ export function createAdminService(
         })
       } catch {
         /* уведомление не должно ломать PATCH */
+      }
+      if (submissionStatusHook && data.status !== undefined && data.status !== before.status) {
+        try {
+          await submissionStatusHook.onSubmissionStatusChange({
+            userId: row.userId,
+            sprintId: row.sprintId,
+            submissionId: row.id,
+            status: row.status,
+            mentorScore: row.mentorScore,
+          })
+        } catch {
+          /* achievement check must not break PATCH */
+        }
       }
       fire('user')
       return row
