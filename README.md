@@ -294,20 +294,45 @@ routes/ → middleware (auth, validate) → services/ → repositories/ → Pris
 
 ### Сервисы (`bff/src/services/`)
 
-| Файл                           | Что делает                                    |
-| ------------------------------ | --------------------------------------------- |
-| `authService.ts`               | Логин, logout, refresh, хеши паролей (bcrypt) |
-| `tokenService.ts`              | Создание и верификация JWT access/refresh     |
-| `sessionStore.ts`              | Хранение refresh-токенов в Redis              |
-| `adminService.ts`              | CRUD пользователей, спринтов, доступов        |
-| `submissionService.ts`         | Приём решений, статусы, подсчёт баллов        |
-| `likeService.ts`               | Лайки на решения с дедупликацией              |
-| `sprintMetricsService.ts`      | Метрики активности по спринту                 |
-| `achievementGranter.ts`        | Логика выдачи ачивок: по условию или вручную  |
-| `hallService.ts`               | Агрегация рейтинга для зала славы             |
-| `metaService.ts`               | Публичные данные без авторизации              |
-| `memberNotificationService.ts` | Создание уведомлений участникам               |
-| `profileService.ts`            | Профиль, история, ачивки пользователя         |
+| Файл                           | Что делает                                               |
+| ------------------------------ | -------------------------------------------------------- |
+| `authService.ts`               | Логин, logout, refresh, хеши паролей (bcrypt)            |
+| `tokenService.ts`              | Создание и верификация JWT access/refresh                |
+| `sessionStore.ts`              | Хранение refresh-токенов в Redis                         |
+| `adminService.ts`              | CRUD пользователей, спринтов, доступов                   |
+| `submissionService.ts`         | Приём решений, статусы, подсчёт баллов; триггеры granter |
+| `likeService.ts`               | Лайки на решения с дедупликацией; триггер granter        |
+| `sprintMetricsService.ts`      | Метрики активности по спринту                            |
+| `achievementGranter.ts`        | Автовыдача ачивок по событиям (см. ниже)                 |
+| `hallService.ts`               | Агрегация рейтинга для зала славы                        |
+| `hallPublicFilter.ts`          | Фильтр и сортировка спринтов в публичном зале славы      |
+| `metaService.ts`               | Публичные мета-данные (тизер спринта, маркетинг)         |
+| `memberNotificationService.ts` | Создание уведомлений участникам                          |
+| `profileService.ts`            | Профиль, история, ачивки пользователя                    |
+
+---
+
+## Система ачивок
+
+Ачивки делятся на **автоматические** (выдаются сервисом `achievementGranter` по событиям) и **кастомные** (создаются и выдаются администратором вручную через `/achievements` в админке).
+
+### Автоматические ачивки
+
+| Slug               | Название         | Триггер                    | Условие                                                              |
+| ------------------ | ---------------- | -------------------------- | -------------------------------------------------------------------- |
+| `first_submission` | Первый шаг       | `onSubmissionUpsert`       | Первый сабмишн пользователя за всю историю                           |
+| `first_accepted`   | Принято          | `onSubmissionStatusChange` | Первое решение в статусе `ACCEPTED`                                  |
+| `score_100`        | Сотка            | `onSubmissionStatusChange` | Принятое решение с `mentorScore ≥ 100`                               |
+| `sprint_winner`    | Чемпион спринта  | `onSubmissionStatusChange` | Лучшее принятое решение в спринте (order: score → likes → createdAt) |
+| `popular_solution` | Народный любимец | `onLikesChanged`           | Решение собрало 25+ лайков                                           |
+
+`achievementGranter` подключается через `container.ts` и вызывается из `submissionService` (создание / смена статуса) и `likeService` (изменение счётчика лайков). Повторные выдачи защищены `upsert` по составному ключу `userId + achievementId`.
+
+### Кастомные ачивки
+
+Создаются на странице `/achievements` в админке: иконка из Material Icons, slug, название, описание. Выдаются конкретному пользователю или пакетно — всем участникам выбранного спринта.
+
+> На production-сервере при первом деплое granter'а нужно один раз создать записи Achievement с slug'ами из таблицы выше. Полный `npm run db:seed` может упасть из-за уникального ограничения `Sprint.active` — используйте точечный upsert (см. `bff/prisma/seed.ts`, массив `AUTO_ACHIEVEMENTS`).
 
 ---
 
