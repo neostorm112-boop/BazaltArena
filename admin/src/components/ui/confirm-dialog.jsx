@@ -25,7 +25,7 @@ export function ConfirmDialog({
         />
         <DialogPrimitive.Content
           className={cn(
-            'fixed left-1/2 top-1/2 z-[120] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-plantation bg-gradient-to-b from-timber to-aztec p-6 shadow-2xl shadow-black/50 focus:outline-none data-[state=open]:animate-in'
+            'fixed left-1/2 top-1/2 z-[120] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-plantation bg-timber p-6 shadow-2xl shadow-black/50 focus:outline-none data-[state=open]:animate-in'
           )}
           onPointerDownOutside={(e) => {
             if (isPending) e.preventDefault()

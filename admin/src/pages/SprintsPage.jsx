@@ -154,11 +154,7 @@ function SprintTimeBar({ sprint, variant, nowMs }) {
     'shadow-[0_0_16px_rgba(13,204,242,0.5)]'
   const ongoingGlow = variant === 'ongoing' && !done && 'shadow-[0_0_8px_rgba(13,204,242,0.38)]'
   const track = done ? 'bg-plantation/80' : 'bg-plantation'
-  const fill = done
-    ? 'bg-gradient-to-r from-gull/50 to-gull/15'
-    : variant === 'ongoing'
-      ? 'bg-gradient-to-r from-[#065a6b] via-[#0aa5c4] to-[#0dccf2]'
-      : 'bg-gradient-to-r from-[#0b7a91] via-[#0cc4e8] to-[#101f22]'
+  const fill = done ? 'bg-gull/30' : variant === 'ongoing' ? 'bg-turquoise/70' : 'bg-turquoise/40'
   const rimGlow = arenaGlow || ongoingGlow || ''
   return (
     <div className="mt-2 max-w-md">
@@ -316,7 +312,7 @@ function formatSprintRangePreview(range) {
 function SprintPreviewCard({ title, tabLabel, completedLabel, tags, tabIcon, range }) {
   const period = formatSprintRangePreview(range)
   return (
-    <div className="rounded-xl border border-plantation bg-gradient-to-b from-timber/80 to-aztec/60 p-4 shadow-inner">
+    <div className="rounded-xl border border-plantation bg-timber/80 p-4 shadow-inner">
       <p className="font-mono text-[9px] uppercase tracking-wider text-slate-arena">
         Как выглядит на сайте
       </p>

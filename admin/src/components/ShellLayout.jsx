@@ -4,9 +4,9 @@ import { clearSession, postLogout } from '../api.js'
 import { Button } from './ui/button.jsx'
 
 const navCls = ({ isActive }) =>
-  `flex items-center gap-3 rounded-xl px-3 py-2.5 font-mono text-xs font-bold uppercase tracking-wide transition ${
+  `flex items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-xs font-bold uppercase tracking-wide transition ${
     isActive
-      ? 'bg-gradient-to-r from-turquoise/20 to-transparent text-turquoise'
+      ? 'bg-turquoise/10 text-turquoise'
       : 'text-gull hover:bg-white/[0.04] hover:text-catskill'
   }`
 
@@ -33,7 +33,7 @@ export function ShellLayout() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-plantation bg-gradient-to-b from-timber via-[#152a2f] to-aztec p-4 shadow-[4px_0_24px_-8px_rgba(0,0,0,0.35)]">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-plantation bg-timber p-4">
         <div className="mb-8 px-2">
           <div className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-turquoise">
             Basalt Arena
