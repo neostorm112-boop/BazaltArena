@@ -14,7 +14,7 @@
 | [Скрипты](#-скрипты-корень-и-bff)                                          | `npm run …`                      |
 | [Переменные окружения](#-переменные-окружения)                             | `.env.example`                   |
 | [Тесты и качество](#-тесты)                                                | unit / integration               |
-| [Продакшен (Lightsail)](#-продакшен-lightsail)                             | один скрипт деплоя               |
+| [Деплой на сервер](#-деплой-на-сервер)                                     | скрипт bootstrap Ubuntu + nginx  |
 | [Синхронизация БД с локали на сервер](#-синхронизация-бд-локально--сервер) | дамп схемы `bff`                 |
 | [Частые проблемы](#-частые-проблемы)                                       | 401, 503, порты, Prisma          |
 
@@ -85,7 +85,7 @@ flowchart LR
 
 - **BFF** — единственная публичная поверхность API: `routes → services → repositories → prisma`.
 - **Redis** — rate-limit, данные вокруг refresh-сессий.
-- **`server`** — legacy mock, только `npm run dev:mock`, в проде не используется.
+- **`server`** — legacy mock, только `npm run dev:mock`; в основной схеме не используется.
 
 ---
 
@@ -122,7 +122,7 @@ flowchart LR
 
 Полный пример и комментарии — **[`.env.example`](.env.example)** в корне.
 
-Критичные для продакшена:
+Критичные при выкате на сервер:
 
 | Переменная                                 | Назначение                                      |
 | ------------------------------------------ | ----------------------------------------------- |
@@ -142,15 +142,15 @@ flowchart LR
 
 ---
 
-## Продакшен (Lightsail)
+## Деплой на сервер
 
-Один сценарий на чистом Ubuntu — **[`deploy/lightsail-once.sh`](deploy/lightsail-once.sh)** (Docker, Node 22, clone, compose, миграции, сид, сборка, systemd `basalt-bff`, nginx на `:80` и `:8080`).
+Один сценарий на **чистом Ubuntu** — **[`deploy/ubuntu-bootstrap-once.sh`](deploy/ubuntu-bootstrap-once.sh)** (Docker, Node 22, clone, compose, миграции, сид, сборка, systemd `basalt-bff`, nginx на `:80` и `:8080`).
 
 Пример:
 
 ```bash
 export PUBLIC_ORIGIN=http://ВАШ_IP_или_домен
-bash deploy/lightsail-once.sh
+bash deploy/ubuntu-bootstrap-once.sh
 ```
 
 После сида пароль админа смотрите в `~/bazalt-arena/.env` → `SEED_ADMIN_PASSWORD`.
@@ -164,7 +164,7 @@ bash deploy/lightsail-once.sh
 Если нужно перенести **всю схему `bff`** с локального Postgres на сервер (пользователи, хеши паролей, спринты и т.д.):
 
 ```bash
-export SSH_KEY=/path/to/Lightsail.pem
+export SSH_KEY=/path/to/server-key.pem
 export REMOTE_HOST=ubuntu@ВАШ_IP
 bash deploy/sync-bff-db-from-local-to-server.sh
 ```
