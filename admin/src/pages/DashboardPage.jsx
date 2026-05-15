@@ -5,7 +5,7 @@ import { Skeleton } from '../components/ui/skeleton.jsx'
 
 function StatCard({ title, value, icon: Icon, loading }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-plantation bg-gradient-to-br from-timber/90 to-aztec p-6 shadow-lg">
+    <div className="relative overflow-hidden rounded-2xl border border-plantation bg-timber/90 p-6 shadow-lg">
       <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-turquoise/10 blur-2xl" />
       <div className="relative flex items-start justify-between gap-4">
         <div>

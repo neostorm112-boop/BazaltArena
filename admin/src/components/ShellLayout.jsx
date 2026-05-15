@@ -4,9 +4,9 @@ import { clearSession, postLogout } from '../api.js'
 import { Button } from './ui/button.jsx'
 
 const navCls = ({ isActive }) =>
-  `flex items-center gap-3 rounded-xl px-3 py-2.5 font-mono text-xs font-bold uppercase tracking-wide transition ${
+  `flex items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-xs font-bold uppercase tracking-wide transition ${
     isActive
-      ? 'bg-gradient-to-r from-turquoise/20 to-transparent text-turquoise'
+      ? 'bg-turquoise/10 text-turquoise'
       : 'text-gull hover:bg-white/[0.04] hover:text-catskill'
   }`
 
@@ -33,13 +33,14 @@ export function ShellLayout() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-plantation bg-gradient-to-b from-timber to-aztec p-4">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-plantation bg-timber p-4">
         <div className="mb-8 px-2">
-          <div className="font-mono text-[10px] font-bold uppercase tracking-[0.25em] text-turquoise">
-            Basalt
+          <div className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-turquoise">
+            Basalt Arena
           </div>
-          <div className="mt-1 text-lg font-semibold tracking-tight text-catskill">
-            Админка арены
+          <div className="mt-1 text-lg font-bold tracking-tight text-white">Админка</div>
+          <div className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-slate-arena">
+            v4.2
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
@@ -55,7 +56,7 @@ export function ShellLayout() {
           Выйти
         </Button>
       </aside>
-      <main className="min-w-0 flex-1 overflow-auto bg-aztec/50 p-6 md:p-10">
+      <main className="min-w-0 flex-1 overflow-auto bg-aztec p-6 md:p-10">
         <Outlet />
       </main>
     </div>

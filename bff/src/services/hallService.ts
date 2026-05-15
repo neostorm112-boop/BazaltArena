@@ -1,5 +1,6 @@
 import type { PrismaClient, Sprint } from '@prisma/client'
 import { AppError } from '../errors/AppError.js'
+import { filterHallSprintsForPublic, hallTabRankZeroBased } from './hallPublicFilter.js'
 import type { LikeRepository } from '../repositories/likeRepo.js'
 import type { SprintAccessRepository } from '../repositories/sprintAccessRepo.js'
 import type { SprintRepository, SortBy } from '../repositories/sprintRepo.js'
@@ -63,32 +64,6 @@ function describeSprint(
   }
 }
 
-/** В зале: только арена (даже без решений) и завершённые спринты с решениями; арена всегда первая. */
-function filterHallSprintsForPublic<
-  T extends { id: string; solutions: unknown[]; endsAt: string | null },
->(details: T[], activeId: string | null | undefined): T[] {
-  const eligible = details.filter((s) => {
-    const isArena = activeId != null && s.id === activeId
-    return isArena || s.solutions.length > 0
-  })
-  if (!activeId) {
-    return [...eligible].sort((a, b) => {
-      const ta = a.endsAt ? new Date(a.endsAt).getTime() : 0
-      const tb = b.endsAt ? new Date(b.endsAt).getTime() : 0
-      return tb - ta
-    })
-  }
-  const active = eligible.find((s) => s.id === activeId)
-  const rest = eligible
-    .filter((s) => s.id !== activeId)
-    .sort((a, b) => {
-      const ta = a.endsAt ? new Date(a.endsAt).getTime() : 0
-      const tb = b.endsAt ? new Date(b.endsAt).getTime() : 0
-      return tb - ta
-    })
-  return active ? [active, ...rest] : rest
-}
-
 export interface HallService {
   hall(userId: string | undefined, sortBy: SortBy): Promise<unknown>
   sprintList(userId: string | undefined, sortBy: SortBy): Promise<unknown>
@@ -146,12 +121,14 @@ export function createHallService(deps: {
       const hallHero = visible[0] ?? null
       const pastWinners = visible
         .filter((s) => hallHero && s.id !== hallHero.id && s.solutions.length > 0)
-        .map((s, idx) => {
+        .map((s) => {
+          const idx = visible.findIndex((x) => x.id === s.id)
           const top = (s as { solutions: ReturnType<typeof decorateSolution>[] }).solutions[0]
           return {
-            sprintRank: `#${visible.length - idx - 1}`,
+            sprintRank: `#${hallTabRankZeroBased(visible.length, idx)}`,
             title: s.title,
             handle: top?.handle ?? 'unknown',
+            sprintId: s.id,
           }
         })
       return {

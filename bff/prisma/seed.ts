@@ -82,6 +82,7 @@ const SPRINTS = [
       deltaLabel: 'Старт спринта',
       successRate: '—',
       verifiedSolutions: 0,
+      prizeRub: 60_000,
     },
   },
   {
@@ -110,6 +111,7 @@ const SPRINTS = [
       deltaLabel: '+4% к прошлому спринту',
       successRate: '38,1%',
       verifiedSolutions: 340,
+      prizeRub: 80_000,
     },
   },
   {
@@ -138,6 +140,7 @@ const SPRINTS = [
       deltaLabel: 'Черновик',
       successRate: '—',
       verifiedSolutions: 0,
+      prizeRub: 100_000,
     },
   },
   {
@@ -166,6 +169,7 @@ const SPRINTS = [
       deltaLabel: 'Архив',
       successRate: '—',
       verifiedSolutions: 0,
+      prizeRub: 40_000,
     },
   },
 ] satisfies SeedSprint[]
@@ -180,6 +184,37 @@ const ACHIEVEMENTS = [
   { slug: 'arch', title: 'Архитектор', subtitle: 'Создатель Basalt Arena', icon: 'architecture' },
   { slug: 'first', title: 'Первый', subtitle: 'Выложил решение первым', icon: 'looks_one' },
   { slug: 'ghost', title: 'Невидимка', subtitle: 'Ни разу не участвовал', icon: 'block' },
+  // Авто-выдача из services/achievementGranter.ts.
+  {
+    slug: 'first_submission',
+    title: 'Первый шаг',
+    subtitle: 'Отправил первое решение',
+    icon: 'flag',
+  },
+  {
+    slug: 'first_accepted',
+    title: 'Принято',
+    subtitle: 'Первое решение принято наставником',
+    icon: 'verified',
+  },
+  {
+    slug: 'score_100',
+    title: 'Сотка',
+    subtitle: 'Получил 100 баллов за решение',
+    icon: 'military_tech',
+  },
+  {
+    slug: 'sprint_winner',
+    title: 'Чемпион спринта',
+    subtitle: 'Лучшее решение в спринте',
+    icon: 'emoji_events',
+  },
+  {
+    slug: 'popular_solution',
+    title: 'Народный любимец',
+    subtitle: 'Решение собрало 25+ лайков',
+    icon: 'favorite',
+  },
 ] as const
 
 const DEMO_USERS: SeedUser[] = [
@@ -558,10 +593,15 @@ async function main() {
       where: { sprintId: sprint.id },
       _sum: { likesCount: true },
     })
+    // Сохраняем кастомные поля (например `prizeRub`), заданные в SPRINTS.
+    const seedMetrics = (sprint.metrics ?? {}) as Record<string, unknown>
+    const customFields: Record<string, unknown> = {}
+    if (typeof seedMetrics.prizeRub === 'number') customFields.prizeRub = seedMetrics.prizeRub
     await prisma.sprint.update({
       where: { id: sprint.id },
       data: {
         metrics: {
+          ...customFields,
           submissions: total,
           submissionsBarPct:
             total === 0 ? 0 : Math.min(100, Math.round((total / Math.max(total, 50)) * 100)),

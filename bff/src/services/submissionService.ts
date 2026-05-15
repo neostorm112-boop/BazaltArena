@@ -33,6 +33,12 @@ export function createSubmissionService(deps: {
   submissions: SubmissionRepository
   sprintAccess: SprintAccessRepository
   onAfterSubmission?: (sprintId: string) => Promise<void>
+  onAfterSubmissionUpsert?: (input: {
+    userId: string
+    sprintId: string
+    submissionId: string
+    isCreate: boolean
+  }) => Promise<void>
 }): SubmissionService {
   async function assertCanSubmit(userId: string, sprintId: string) {
     const rights = await deps.sprintAccess.effectiveRights(userId, sprintId)
@@ -55,8 +61,21 @@ export function createSubmissionService(deps: {
     await assertCanSubmit(input.userId, input.sprintId)
     const existing = await deps.submissions.findByUserAndSprint(input.userId, input.sprintId)
     const row = await deps.submissions.upsert(input)
+    const isCreate = !existing
     await deps.onAfterSubmission?.(input.sprintId)
-    return { ...row, isCreate: !existing }
+    if (deps.onAfterSubmissionUpsert) {
+      try {
+        await deps.onAfterSubmissionUpsert({
+          userId: input.userId,
+          sprintId: input.sprintId,
+          submissionId: row.id,
+          isCreate,
+        })
+      } catch {
+        /* achievement check must not break submission flow */
+      }
+    }
+    return { ...row, isCreate }
   }
 
   return {

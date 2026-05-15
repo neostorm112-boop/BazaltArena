@@ -25,7 +25,7 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center px-4">
       <form
         onSubmit={submit}
-        className="w-full max-w-md space-y-5 rounded-2xl border border-plantation bg-gradient-to-b from-timber to-aztec p-8 shadow-2xl shadow-black/40"
+        className="w-full max-w-md space-y-5 rounded-2xl border border-plantation bg-timber p-8 shadow-2xl shadow-black/40"
       >
         <div>
           <h1 className="font-mono text-sm font-bold uppercase tracking-widest text-turquoise">

@@ -387,10 +387,15 @@ export function createAdminRepository(prisma: PrismaClient) {
     async batchAcceptSubmissions(ids: string[]) {
       const targets = await prisma.submission.findMany({
         where: { id: { in: ids } },
-        select: { id: true, sprintId: true },
+        select: { id: true, sprintId: true, userId: true },
       })
       if (targets.length === 0) {
-        return { ok: true as const, updated: 0, sprintIds: [] as string[] }
+        return {
+          ok: true as const,
+          updated: 0,
+          sprintIds: [] as string[],
+          accepted: [] as Array<{ id: string; sprintId: string; userId: string }>,
+        }
       }
       await prisma.submission.updateMany({
         where: { id: { in: targets.map((t) => t.id) } },
@@ -400,6 +405,7 @@ export function createAdminRepository(prisma: PrismaClient) {
         ok: true as const,
         updated: targets.length,
         sprintIds: [...new Set(targets.map((t) => t.sprintId))],
+        accepted: targets,
       }
     },
 

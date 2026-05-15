@@ -135,7 +135,7 @@ export function AppHeader() {
                   className="leading-none text-gull [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
                 />
                 {notificationsUnread > 0 ? (
-                  <span className="absolute right-2 top-2 size-2 rounded-full bg-turquoise ring-2 ring-aztec" />
+                  <span className="absolute right-2 top-2 size-2 rounded-full bg-turquoise shadow-[0_0_0_2px_#101F22]" />
                 ) : null}
               </button>
 
@@ -219,7 +219,7 @@ export function AppHeader() {
           >
             <div
               aria-hidden
-              className="relative size-9 shrink-0 overflow-hidden rounded-lg border border-plantation bg-aztec"
+              className="relative size-9 shrink-0 overflow-hidden rounded-lg border border-turquoise/30 bg-aztec shadow-[0_10px_15px_-3px_rgba(13,204,242,0.2),0_4px_6px_-4px_rgba(13,204,242,0.2)]"
             >
               <img
                 src={avatarSrc}

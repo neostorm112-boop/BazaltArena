@@ -194,6 +194,7 @@ export const adminPatchSprintBody = z
     endsAt: z.union([z.string().datetime(), z.null()]).optional(),
     published: z.boolean().optional(),
     archived: z.boolean().optional(),
+    active: z.boolean().optional(),
     slug: z
       .string()
       .min(1)

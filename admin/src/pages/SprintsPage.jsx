@@ -56,6 +56,39 @@ function isSprintTemporallyFinished(s, nowMs = Date.now()) {
   return f != null && f >= 1
 }
 
+/** Текущий «логический» статус для выпадающего списка (совпадает с секциями списка). */
+function sprintUiStatus(s, nowMs = Date.now()) {
+  if (s.archived) return 'archive'
+  if (s.active && !isSprintTemporallyFinished(s, nowMs)) return 'active'
+  if (isSprintTemporallyFinished(s, nowMs)) return 'finished'
+  return 'planned'
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** PATCH: снять с арены / из архива в «запланирован» — при необходимости продлить дедлайн. */
+function patchBodyForPlanned(s, nowMs = Date.now()) {
+  const base = { active: false, archived: false }
+  const endT = s.endsAt ? new Date(s.endsAt).getTime() : 0
+  if (endT > nowMs) return base
+  const now = new Date(nowMs)
+  const end = new Date(nowMs + 14 * DAY_MS)
+  return {
+    ...base,
+    startsAt: toIsoStartOfDay(now),
+    endsAt: toIsoEndOfDay(end),
+  }
+}
+
+/** PATCH: принудительно «завершён по календарю» (дедлайн в прошлом). */
+function patchBodyForFinished(_s, nowMs = Date.now()) {
+  const yesterday = new Date(nowMs - DAY_MS)
+  const endsAt = toIsoEndOfDay(yesterday)
+  const endMs = new Date(endsAt).getTime()
+  const startsAt = toIsoStartOfDay(new Date(endMs - 7 * DAY_MS))
+  return { active: false, archived: false, startsAt, endsAt }
+}
+
 /**
  * Арена — только активный по флагу и ещё не «логически завершён».
  * Завершённые — прошлый финиш или прогресс 100% (в т.ч. активный по флагу, но с истёкшими датами).
@@ -97,7 +130,6 @@ function partitionSprints(list, nowMs = Date.now()) {
 
 function formatProgressCaption(s, nowMs = Date.now()) {
   if (!s?.startsAt || !s?.endsAt) return 'Задайте старт и финиш — тогда появится прогресс'
-  const t0 = new Date(s.startsAt).getTime()
   const t1 = new Date(s.endsAt).getTime()
   const done = nowMs >= t1 || sprintTimeFraction(s, nowMs) >= 1
   if (done) {
@@ -119,14 +151,10 @@ function SprintTimeBar({ sprint, variant, nowMs }) {
     variant === 'arena' &&
     sprint.active &&
     !isSprintTemporallyFinished(sprint, nowMs) &&
-    'shadow-[0_0_16px_rgba(157,124,255,0.55)]'
-  const ongoingGlow = variant === 'ongoing' && !done && 'shadow-[0_0_8px_rgba(91,63,212,0.35)]'
+    'shadow-[0_0_16px_rgba(13,204,242,0.5)]'
+  const ongoingGlow = variant === 'ongoing' && !done && 'shadow-[0_0_8px_rgba(13,204,242,0.38)]'
   const track = done ? 'bg-plantation/80' : 'bg-plantation'
-  const fill = done
-    ? 'bg-gradient-to-r from-gull/50 to-gull/15'
-    : variant === 'ongoing'
-      ? 'bg-gradient-to-r from-[#7c5cdb] via-[#5b3fd4] to-[#22184d]'
-      : 'bg-gradient-to-r from-[#9d7cff] via-[#5b3fd4] to-[#1c1538]'
+  const fill = done ? 'bg-gull/30' : variant === 'ongoing' ? 'bg-turquoise/70' : 'bg-turquoise/40'
   const rimGlow = arenaGlow || ongoingGlow || ''
   return (
     <div className="mt-2 max-w-md">
@@ -284,7 +312,7 @@ function formatSprintRangePreview(range) {
 function SprintPreviewCard({ title, tabLabel, completedLabel, tags, tabIcon, range }) {
   const period = formatSprintRangePreview(range)
   return (
-    <div className="rounded-xl border border-plantation bg-gradient-to-b from-timber/80 to-aztec/60 p-4 shadow-inner">
+    <div className="rounded-xl border border-plantation bg-timber/80 p-4 shadow-inner">
       <p className="font-mono text-[9px] uppercase tracking-wider text-slate-arena">
         Как выглядит на сайте
       </p>
@@ -378,8 +406,12 @@ export function SprintsPage() {
     queryFn: () => api('/admin/sprints'),
   })
 
-  const sprints = data?.sprints ?? []
-  const nowMs = useMemo(() => Date.now(), [nowTick, sprints])
+  const sprints = useMemo(() => data?.sprints ?? [], [data?.sprints])
+  const nowMs = useMemo(() => {
+    void nowTick
+    void data?.sprints
+    return Date.now()
+  }, [nowTick, data?.sprints])
   const groups = useMemo(() => partitionSprints(sprints, nowMs), [sprints, nowMs])
 
   const resetForm = useCallback(() => {
@@ -471,13 +503,23 @@ export function SprintsPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Ошибка'),
   })
 
-  const activateMutation = useMutation({
-    mutationFn: (id) => api(`/admin/sprints/${id}/activate`, { method: 'POST' }),
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, next, sprint }) => {
+      if (next === 'active') {
+        return api(`/admin/sprints/${id}/activate`, { method: 'POST' })
+      }
+      if (next === 'planned') {
+        const body = patchBodyForPlanned(sprint, Date.now())
+        return api(`/admin/sprints/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+      }
+      if (next === 'finished') {
+        const body = patchBodyForFinished(sprint, Date.now())
+        return api(`/admin/sprints/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+      }
+      throw new Error('Неизвестный статус')
+    },
     onSuccess: () => {
-      toast.success('Активный спринт обновлён', {
-        description:
-          'Старт выставлен на сегодня (UTC). Финиш — через 7 дней, если старый уже прошёл; свой будущий дедлайн сохраняется.',
-      })
+      toast.success('Статус спринта обновлён')
       void qc.invalidateQueries({ queryKey: ['admin', 'sprints'] })
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Ошибка'),
@@ -563,6 +605,9 @@ export function SprintsPage() {
 
   const previewTags = useMemo(() => parseTags(form.tagsRaw), [form.tagsRaw])
 
+  const sprintRowBtn =
+    'h-9 min-w-[9rem] justify-center px-2 py-0 text-[10px] font-semibold !rounded-lg font-sans'
+
   const renderSprintRow = (s, section) => {
     const barVariant = section === 'active' ? 'arena' : section === 'planned' ? 'ongoing' : 'done'
     const arenaButFinished = s.active && section === 'finished'
@@ -601,25 +646,38 @@ export function SprintsPage() {
             <SprintTimeBar sprint={s} variant={barVariant} nowMs={nowMs} />
           ) : null}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {!s.active ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="inline-flex items-center gap-1 py-1.5 text-[10px]"
-              disabled={activateMutation.isPending}
-              onClick={() => activateMutation.mutate(s.id)}
-            >
-              <span className="material-symbols-outlined text-[16px] leading-none" aria-hidden>
-                stadium
-              </span>
-              На арену
-            </Button>
-          ) : null}
+        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="sr-only" htmlFor={`sprint-status-${s.id}`}>
+            Статус спринта
+          </label>
+          <select
+            id={`sprint-status-${s.id}`}
+            className={cn(
+              'h-9 min-w-[12.5rem] shrink-0 rounded-lg border border-plantation bg-aztec px-2 font-mono text-[10px] font-semibold text-catskill outline-none focus:border-turquoise/40 focus:ring-1 focus:ring-turquoise/15',
+              statusMutation.isPending && statusMutation.variables?.id === s.id && 'opacity-50'
+            )}
+            value={sprintUiStatus(s, nowMs)}
+            disabled={statusMutation.isPending && statusMutation.variables?.id === s.id}
+            onChange={(e) => {
+              const next = e.target.value
+              const cur = sprintUiStatus(s, nowMs)
+              if (next === cur) return
+              if (next === 'archive') {
+                setArchiveConfirm({ id: s.id, title: s.title })
+                return
+              }
+              statusMutation.mutate({ id: s.id, next, sprint: s })
+            }}
+          >
+            <option value="active">Активная арена</option>
+            <option value="planned">Запланирован</option>
+            <option value="finished">Завершён</option>
+            <option value="archive">Архив</option>
+          </select>
           <Button
             type="button"
             variant="outline"
-            className="py-1.5 text-[10px]"
+            className={sprintRowBtn}
             onClick={() => openEdit(s)}
           >
             Редактировать
@@ -627,23 +685,12 @@ export function SprintsPage() {
           <Button
             type="button"
             variant="outline"
-            className="py-1.5 text-[10px]"
+            className={sprintRowBtn}
             disabled={duplicateMutation.isPending}
             onClick={() => duplicateMutation.mutate(s.id)}
           >
             Дублировать
           </Button>
-          {!s.archived ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="py-1.5 text-[10px] text-red-300/90"
-              disabled={archiveMutation.isPending}
-              onClick={() => setArchiveConfirm({ id: s.id, title: s.title })}
-            >
-              В архив
-            </Button>
-          ) : null}
         </div>
       </li>
     )
@@ -657,8 +704,9 @@ export function SprintsPage() {
             Спринты
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-gull">
-            Секции отражают очередь боёв и календарь. Редактирование — в боковой панели. Короткий
-            адрес в ссылке подставляется из названия; при необходимости поправьте его вручную.
+            Секции отражают очередь боёв и календарь. Статус (включая архив) — в списке у строки;
+            архив подтверждается в диалоге. Редактирование — в боковой панели. Короткий адрес в
+            ссылке подставляется из названия; при необходимости поправьте его вручную.
           </p>
         </div>
         <Button variant="gradient" onClick={openCreate}>
@@ -680,7 +728,8 @@ export function SprintsPage() {
           <Section title="Активный" subtitle="Текущий бой на арене (не более одного).">
             {groups.activeArena.length === 0 ? (
               <li className="list-none rounded-xl border border-dashed border-plantation px-4 py-6 text-center text-sm text-gull">
-                Нет активного спринта — назначьте кнопкой «На арену» или включите при создании.
+                Нет активного спринта — выберите «Активная арена» в списке статуса у нужного спринта
+                или отметьте при создании.
               </li>
             ) : (
               groups.activeArena.map((s) => renderSprintRow(s, 'active'))

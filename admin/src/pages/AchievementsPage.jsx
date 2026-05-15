@@ -259,7 +259,7 @@ export function AchievementsPage() {
           : list.map((a) => (
               <div
                 key={a.id}
-                className="group flex flex-col rounded-2xl border border-plantation bg-gradient-to-br from-timber/80 to-aztec p-5 shadow-lg transition hover:border-turquoise/30"
+                className="group flex flex-col rounded-2xl border border-plantation bg-timber/80 p-5 shadow-lg transition hover:border-turquoise/30"
               >
                 <AchievementCardIcon icon={a.icon} />
                 <h2 className="mt-4 font-sans text-lg font-semibold leading-snug tracking-tight text-catskill">

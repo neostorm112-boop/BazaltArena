@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Одноразовый bootstrap на чистом Ubuntu (Lightsail). Запуск: на сервере от ubuntu.
+# Одноразовый bootstrap на чистом Ubuntu (VPS). Запуск на сервере от пользователя с sudo и Docker.
 set -euo pipefail
 REPO_URL="${REPO_URL:-https://github.com/neostorm112-boop/BazaltArena.git}"
 APP_DIR="${APP_DIR:-$HOME/bazalt-arena}"

@@ -123,6 +123,15 @@ function mapError(error: unknown, req: Request): { status: number; body: ErrorBo
   return null
 }
 
+function isMockRequest(req: Request): boolean {
+  const url = req.originalUrl ?? req.url ?? ''
+  return url.startsWith('/api/mock/')
+}
+
+function toMockEnvelope(body: ErrorBody): { error: string } {
+  return { error: body.message }
+}
+
 export function errorHandler() {
   return function errorMiddleware(
     error: unknown,
@@ -133,6 +142,9 @@ export function errorHandler() {
     try {
       const mapped = mapError(error, req)
       if (mapped) {
+        if (isMockRequest(req)) {
+          return res.status(mapped.status).json(toMockEnvelope(mapped.body))
+        }
         return res.status(mapped.status).json(mapped.body)
       }
 
@@ -146,15 +158,22 @@ export function errorHandler() {
         message: 'Internal server error',
         requestId: req.requestId,
       }
+      if (isMockRequest(req)) {
+        return res.status(500).json(toMockEnvelope(body))
+      }
       return res.status(500).json(body)
     } catch (fatal) {
       const rid = typeof req.requestId === 'string' ? req.requestId : 'unknown'
       const log = req.log ?? console
       log.error({ err: fatal }, 'Error handler failed')
       if (!res.headersSent) {
-        res
-          .status(500)
-          .json({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: rid })
+        if (isMockRequest(req)) {
+          res.status(500).json({ error: 'Internal server error' })
+        } else {
+          res
+            .status(500)
+            .json({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: rid })
+        }
       }
     }
   }
