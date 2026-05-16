@@ -365,6 +365,78 @@ routes/ → middleware (auth, validate) → services/ → repositories/ → Pris
 
 ---
 
+## Операционная зрелость
+
+Бэк готов к работе в проде, а не только в локалке:
+
+### Метрики и health-чеки
+
+```bash
+# Liveness — процесс жив, без проверки зависимостей
+curl http://localhost:3001/api/v1/health
+# → { "ok": true, "service": "basalt-bff", "version": "2.0.0" }
+
+# Readiness — пингует Postgres + Redis. 200 если ok, 503 если что-то лежит.
+# Используется k8s/Docker для авто-рестарта упавшего контейнера.
+curl http://localhost:3001/api/v1/health/ready
+# → { "ok": true, "deps": { "db": "ok", "redis": "ok" }, "uptimeSec": 1234 }
+
+# Prometheus scrape endpoint — формат для Grafana/Prometheus.
+# Метрики: http_requests_total{method,route,status},
+# http_request_duration_seconds (гистограмма latency),
+# default Node.js (CPU, heap, event loop lag, GC).
+curl http://localhost:3001/metrics
+```
+
+Cardinality лейбла `route` ограничен шаблоном Express (`/api/v1/sprints/:id`),
+а не конкретным URL — чтобы Prometheus не вырос на миллионах уникальных значений.
+
+### Idempotency-Key (POST /submissions)
+
+Защита от двойной отправки решения при ретрае на плохой сети:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/sprints/<id>/submissions \
+  -H "Authorization: Bearer <token>" \
+  -H "Idempotency-Key: 8f-uuid-from-client-side" \
+  -H "Content-Type: application/json" \
+  -d '{"repoUrl":"https://github.com/me/sub"}'
+
+# Повтор с тем же ключом отдаст кэшированный ответ + заголовок Idempotent-Replay: true.
+# Хранится в Redis 24 часа. 4xx кэшируются, 5xx нет.
+```
+
+### Redis-кэш для read-эндпоинтов
+
+`/api/v1/meta` (статистика проекта) кэшируется в Redis на 60 секунд.
+При write-операциях через админку кэш инвалидируется автоматически
+(`invalidate(CacheKeys.metaPattern())`). В ответе заголовок `X-Cache-TTL: 60`.
+
+### Live-обновления через Socket.io
+
+При подключении сокет автоматически входит в комнату `user:<userId>`.
+Это позволяет слать таргетированные события — например, при принятии решения
+ментором владелец видит результат мгновенно, без F5:
+
+| Событие                    | Когда отправляется                                   |
+| -------------------------- | ---------------------------------------------------- |
+| `submission:reviewed`      | Ментор изменил статус/score/комментарий              |
+| `achievement:granted`      | Выдана новая ачивка                                  |
+| `solution:liked`           | Кто-то лайкнул решение                               |
+| `DATA_UPDATED` (broadcast) | Общие списки обновились (зал славы, метрики спринта) |
+
+Клиент подключается так:
+
+```js
+import { io } from 'socket.io-client'
+const socket = io('/', { auth: { token: accessToken } })
+socket.on('submission:reviewed', (e) => {
+  // e.status, e.mentorScore, e.mentorComment, e.at
+})
+```
+
+---
+
 ## Тесты
 
 ```bash
@@ -375,7 +447,15 @@ npm run test
 INTEGRATION=1 npm run test:integration -w bff
 ```
 
-Unit-тесты покрывают: authService, likeService, errorHandler, sprintArenaSchedule, sort, hallPublicFilter, memberAudit.
+**Unit-тесты (57 тестов в 12 файлах):**
+authService, likeService, errorHandler, sprintArenaSchedule, sort,
+hallPublicFilter, memberAudit, **metrics** (Prometheus middleware),
+**health** (readiness + dependency check), **idempotency** (Idempotency-Key),
+**cache** (Redis-обёртка), **realtime** (socket.io targeted events).
+
+**Integration-тесты (14 edge-case'ов):**
+duplicate registration, 401/403/404/409/422 паттерны, само-лайк,
+upsert submissions, auto-achievements end-to-end, PATCH /me.
 
 ADR-документация по контрактам и инвариантам:
 
