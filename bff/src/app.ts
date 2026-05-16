@@ -18,6 +18,8 @@ import {
 } from './api/index.js'
 import { mockRouter } from './routes/mock.routes.js'
 import { metricsMiddleware, metricsRegistry } from './infra/metrics.js'
+import { runHealthCheck } from './infra/health.js'
+import { getRedis } from './infra/redis.js'
 import { buildContainer, env, logger, type Container } from './core/index.js'
 
 export interface AppOptions {
@@ -52,15 +54,32 @@ export function createApp({ prisma, container }: AppOptions): Express {
         if (res.statusCode >= 400) return 'warn'
         return 'info'
       },
-      autoLogging: { ignore: (req) => req.url === '/api/v1/health' || req.url === '/metrics' },
+      autoLogging: {
+        ignore: (req) =>
+          req.url === '/api/v1/health' ||
+          req.url === '/api/v1/health/ready' ||
+          req.url === '/metrics',
+      },
     })
   )
 
   // Метрики собираем после requestContext/pino, но до бизнес-роутов.
   app.use(metricsMiddleware)
 
+  // Liveness — простой, не трогает зависимости. Для самой быстрой проверки "процесс жив".
   app.get('/api/v1/health', (_req, res) => {
     res.json({ ok: true, service: 'basalt-bff', version: '2.0.0' })
+  })
+
+  // Readiness — пингует Postgres и Redis. 200 если всё ок, 503 иначе.
+  // Используется k8s readinessProbe или nginx healthcheck для автоматического failover.
+  app.get('/api/v1/health/ready', async (_req, res) => {
+    const report = await runHealthCheck({
+      prisma,
+      redis: getRedis(),
+      version: '2.0.0',
+    })
+    res.status(report.ok ? 200 : 503).json(report)
   })
 
   // Prometheus scrape endpoint.
