@@ -115,15 +115,17 @@ conditionalDescribe('BFF integration', () => {
     const submissionId = submission.body.id
 
     const like1 = await request(app)
-      .put(`/api/v1/solutions/${submissionId}/like`)
+      .post(`/api/v1/solutions/${submissionId}/like`)
       .set('Authorization', `Bearer ${access}`)
       .expect(200)
     expect(like1.body.likes).toBe(1)
+    expect(like1.body.liked).toBe(true)
     const like2 = await request(app)
-      .put(`/api/v1/solutions/${submissionId}/like`)
+      .post(`/api/v1/solutions/${submissionId}/like`)
       .set('Authorization', `Bearer ${access}`)
       .expect(200)
     expect(like2.body.likes).toBe(1)
+    expect(like2.body.liked).toBe(true)
 
     const hall = await request(app)
       .get('/api/v1/hall?sortBy=likes')
@@ -325,5 +327,106 @@ conditionalDescribe('BFF integration', () => {
     const metrics = updatedSprint.metrics as { verifiedSolutions?: number; submissions?: number }
     expect(metrics.submissions).toBe(1)
     expect(metrics.verifiedSolutions).toBeGreaterThanOrEqual(1)
+  })
+
+  describe('like endpoint REST semantics', () => {
+    async function setup() {
+      const reg = await registerMember(app, {
+        email: `liker-${Math.random().toString(36).slice(2, 8)}@x.com`,
+        handle: `liker_${Math.random().toString(36).slice(2, 8)}`,
+        password: 'password123',
+      }).expect(201)
+      const access = reg.body.accessToken
+      const sprint = await prisma.sprint.findFirstOrThrow()
+      const sub = await request(app)
+        .post(`/api/v1/sprints/${sprint.id}/submissions`)
+        .set('Authorization', `Bearer ${access}`)
+        .send({ repoUrl: 'https://github.com/x/y', demoUrl: 'https://demo.example.com' })
+        .expect(201)
+      return { access, submissionId: sub.body.id as string }
+    }
+
+    it('POST then POST is idempotent and does not bump counter', async () => {
+      const { access, submissionId } = await setup()
+      const first = await request(app)
+        .post(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      expect(first.body).toMatchObject({ submissionId, liked: true, likes: 1 })
+      const second = await request(app)
+        .post(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      expect(second.body).toMatchObject({ submissionId, liked: true, likes: 1 })
+      const row = await prisma.submission.findUniqueOrThrow({ where: { id: submissionId } })
+      expect(row.likesCount).toBe(1)
+    })
+
+    it('DELETE on absent like is idempotent — no side effect on counter', async () => {
+      const { access, submissionId } = await setup()
+      // Start with no like at all.
+      const first = await request(app)
+        .delete(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      expect(first.body).toMatchObject({ submissionId, liked: false, likes: 0 })
+      const second = await request(app)
+        .delete(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      expect(second.body).toMatchObject({ submissionId, liked: false, likes: 0 })
+      const row = await prisma.submission.findUniqueOrThrow({ where: { id: submissionId } })
+      expect(row.likesCount).toBe(0)
+    })
+
+    it('repeated DELETE after a real like never drives counter negative', async () => {
+      const { access, submissionId } = await setup()
+      await request(app)
+        .post(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      await request(app)
+        .delete(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      for (let i = 0; i < 3; i += 1) {
+        const r = await request(app)
+          .delete(`/api/v1/solutions/${submissionId}/like`)
+          .set('Authorization', `Bearer ${access}`)
+          .expect(200)
+        expect(r.body.likes).toBe(0)
+      }
+      const row = await prisma.submission.findUniqueOrThrow({ where: { id: submissionId } })
+      expect(row.likesCount).toBe(0)
+    })
+
+    it('PUT alias still works but is marked deprecated', async () => {
+      const { access, submissionId } = await setup()
+      const res = await request(app)
+        .put(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      expect(res.body).toMatchObject({ submissionId, liked: true, likes: 1 })
+      expect(res.headers.deprecation).toBe('true')
+    })
+
+    it('parallel POSTs from the same user collapse to a single like', async () => {
+      const { access, submissionId } = await setup()
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          request(app)
+            .post(`/api/v1/solutions/${submissionId}/like`)
+            .set('Authorization', `Bearer ${access}`)
+        )
+      )
+      for (const r of results) {
+        expect(r.status).toBe(200)
+        expect(r.body.liked).toBe(true)
+      }
+      const row = await prisma.submission.findUniqueOrThrow({ where: { id: submissionId } })
+      expect(row.likesCount).toBe(1)
+      const likeRows = await prisma.solutionLike.findMany({ where: { submissionId } })
+      expect(likeRows).toHaveLength(1)
+    })
   })
 })

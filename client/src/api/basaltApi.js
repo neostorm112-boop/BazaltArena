@@ -230,10 +230,10 @@ export function postSprintSubmissionV2(id, payload) {
   })
 }
 
-export function putSolutionLike(id) {
-  return request(`/solutions/${id}/like`, { method: 'PUT' })
+export function likeSolution(id) {
+  return request(`/solutions/${id}/like`, { method: 'POST' })
 }
 
-export function deleteSolutionLike(id) {
+export function unlikeSolution(id) {
   return request(`/solutions/${id}/like`, { method: 'DELETE' })
 }

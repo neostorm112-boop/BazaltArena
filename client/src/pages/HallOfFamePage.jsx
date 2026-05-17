@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { deleteSolutionLike, getHall, putSolutionLike } from '../api/basaltApi.js'
+import { getHall, likeSolution, unlikeSolution } from '../api/basaltApi.js'
 import { useAuth } from '../auth/useAuth.js'
 import { queryKeys } from '../lib/queryKeys.js'
 import { AppFooter } from '../components/layout/AppFooter.jsx'
@@ -555,17 +555,73 @@ export function HallOfFamePage() {
   const [likeError, setLikeError] = useState(null)
   const [selectedSprintId, setSelectedSprintId] = useState(null)
 
+  const patchHallSolution = (id, patch) => {
+    qc.setQueriesData({ queryKey: ['hall'] }, (prev) => {
+      if (!prev?.sprints) return prev
+      let changed = false
+      const sprints = prev.sprints.map((sp) => {
+        if (!sp.solutions?.length) return sp
+        let touched = false
+        const solutions = sp.solutions.map((sol) => {
+          if (sol.id !== id) return sol
+          touched = true
+          return { ...sol, ...patch }
+        })
+        if (!touched) return sp
+        changed = true
+        return { ...sp, solutions }
+      })
+      return changed ? { ...prev, sprints } : prev
+    })
+  }
+
   const likeMutation = useMutation({
     mutationFn: async ({ id, liked }) => {
-      if (liked) return deleteSolutionLike(id)
-      return putSolutionLike(id)
+      if (liked) return unlikeSolution(id)
+      return likeSolution(id)
     },
-    onSuccess: () => {
+    onMutate: ({ id, liked }) => {
       setLikeError(null)
-      void qc.invalidateQueries({ queryKey: ['hall'] })
+      const snapshots = qc.getQueriesData({ queryKey: ['hall'] }).map(([key, data]) => [key, data])
+      // Optimistic toggle. Server response in onSuccess is the source of truth.
+      patchHallSolution(id, {
+        likedByMe: !liked,
+      })
+      qc.setQueriesData({ queryKey: ['hall'] }, (prev) => {
+        if (!prev?.sprints) return prev
+        const sprints = prev.sprints.map((sp) => {
+          if (!sp.solutions?.length) return sp
+          const solutions = sp.solutions.map((sol) =>
+            sol.id === id
+              ? { ...sol, likes: Math.max(0, (sol.likes ?? 0) + (liked ? -1 : 1)) }
+              : sol
+          )
+          return { ...sp, solutions }
+        })
+        return { ...prev, sprints }
+      })
+      return { snapshots }
     },
-    onError: (e) => {
+    onError: (e, _vars, context) => {
+      if (context?.snapshots) {
+        for (const [key, data] of context.snapshots) {
+          qc.setQueryData(key, data)
+        }
+      }
       setLikeError(e instanceof Error ? e.message : 'Не удалось изменить лайк')
+    },
+    onSuccess: (result) => {
+      setLikeError(null)
+      if (result?.submissionId) {
+        patchHallSolution(result.submissionId, {
+          likes: result.likes,
+          likedByMe: !!result.liked,
+        })
+      }
+    },
+    onSettled: () => {
+      // Reconcile any drift from concurrent users / metrics recalcs.
+      void qc.invalidateQueries({ queryKey: ['hall'] })
     },
   })
 
