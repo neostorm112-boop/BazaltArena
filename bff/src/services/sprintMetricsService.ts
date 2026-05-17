@@ -12,6 +12,17 @@ function formatPct(n: number): string {
   return `${n.toFixed(1).replace('.', ',')}%`
 }
 
+/**
+ * «Доля успешных» в карточке — отношение проверенных решений (REVIEWED+ACCEPTED)
+ * к общему числу отправок. Подпись виджета говорит «X проверенных решений», поэтому
+ * числитель должен соответствовать ему: 1 из 4 проверенных = 25,0%, а не 0%.
+ */
+export function computeSuccessRate(verified: number, total: number): string {
+  if (total <= 0) return '—'
+  const safeVerified = Math.max(0, Math.min(verified, total))
+  return formatPct((safeVerified / total) * 100)
+}
+
 export function createSprintMetricsService(prisma: PrismaClient) {
   return {
     async recalculate(sprintId: string): Promise<void> {
@@ -25,14 +36,13 @@ export function createSprintMetricsService(prisma: PrismaClient) {
         }),
         prisma.sprint.findUnique({ where: { id: sprintId }, select: { metrics: true } }),
       ])
-      const accepted = await prisma.submission.count({ where: { sprintId, status: 'ACCEPTED' } })
       const likesSum = await prisma.submission.aggregate({
         where: { sprintId },
         _sum: { likesCount: true },
       })
       const totalLikes = likesSum._sum.likesCount ?? 0
 
-      const successRate = total === 0 ? '—' : formatPct((accepted / total) * 100)
+      const successRate = computeSuccessRate(verified, total)
       const submissionsBarPct =
         total === 0 ? 0 : Math.min(100, Math.round((total / Math.max(total, 50)) * 100))
       const computed: SprintMetricsJson = {

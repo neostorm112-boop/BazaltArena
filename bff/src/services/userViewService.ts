@@ -88,6 +88,27 @@ function clampNumber(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n))
 }
 
+/**
+ * Тренд по «Спринтам пройдено» от начала месяца.
+ * Принятые спринты в нормальном потоке не уменьшаются — отрицательная дельта
+ * чаще всего означает, что бейзлайн зафиксирован неверно (например, ручная
+ * перепроверка после rollover'а). Чтобы не пугать пользователя «−N», в этом
+ * случае показываем нейтральный copy, не выдумывая знак.
+ */
+export function computeSprintTrend(
+  sprintsAccepted: number,
+  sprintsAcceptedAtMonthStart: number
+): { label: string; variant: 'slate' | 'malachite' | 'rose'; icon: string } {
+  const delta = sprintsAccepted - sprintsAcceptedAtMonthStart
+  if (delta > 0) {
+    return { label: `+${delta} за месяц`, variant: 'malachite', icon: 'trending_up' }
+  }
+  if (delta < 0) {
+    return { label: 'без новых принятых за месяц', variant: 'slate', icon: 'trending_flat' }
+  }
+  return { label: 'без новых принятых за месяц', variant: 'slate', icon: 'trending_flat' }
+}
+
 function buildStatsCards(
   user: User,
   rank: number,
@@ -96,7 +117,6 @@ function buildStatsCards(
 ): Array<Record<string, unknown>> {
   const ptsDelta = user.points - user.pointsAtMonthStart
   const moneyDelta = user.moneyEarned - user.moneyAtMonthStart
-  const sprDelta = sprintsAccepted - user.sprintsAcceptedAtMonthStart
   const pointsFrom = user.pointsAtMonthStart
 
   let pointsTrendLabel: string
@@ -138,22 +158,10 @@ function buildStatsCards(
     moneyTrendIcon = moneyDelta > 0 ? 'trending_up' : 'trending_down'
   }
 
-  let sprTrendLabel: string
-  let sprVariant: string
-  let sprTrendIcon: string
-  if (sprDelta === 0) {
-    sprTrendLabel = 'без новых принятых за месяц'
-    sprVariant = 'slate'
-    sprTrendIcon = 'trending_flat'
-  } else if (sprDelta > 0) {
-    sprTrendLabel = `+${sprDelta} за месяц`
-    sprVariant = 'malachite'
-    sprTrendIcon = 'trending_up'
-  } else {
-    sprTrendLabel = `${sprDelta} к началу месяца`
-    sprVariant = 'rose'
-    sprTrendIcon = 'trending_down'
-  }
+  const sprTrend = computeSprintTrend(sprintsAccepted, user.sprintsAcceptedAtMonthStart)
+  const sprTrendLabel = sprTrend.label
+  const sprVariant = sprTrend.variant
+  const sprTrendIcon = sprTrend.icon
 
   return [
     {

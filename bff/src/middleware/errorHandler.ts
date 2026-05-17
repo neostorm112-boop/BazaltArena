@@ -15,12 +15,21 @@ function mapError(error: unknown, req: Request): { status: number; body: ErrorBo
 
   if (error instanceof ZodError) {
     req.log?.warn({ err: error.issues }, 'Validation failed')
+    const issues = error.issues.map((i) => ({
+      field: i.path.map(String).join('.') || '_',
+      code: i.code,
+      message: i.message,
+    }))
+    const firstFieldIssue = issues.find((i) => i.field && i.field !== '_')
+    const summary = firstFieldIssue
+      ? `${firstFieldIssue.field}: ${firstFieldIssue.message}`
+      : (issues[0]?.message ?? 'Request payload failed validation')
     return {
       status: 400,
       body: {
         code: 'VALIDATION_ERROR',
-        message: 'Request payload failed validation',
-        details: error.flatten(),
+        message: summary,
+        details: { ...error.flatten(), issues },
         requestId,
       },
     }
