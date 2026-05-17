@@ -24,7 +24,7 @@ export function verifyAccessToken(token: string): AuthClaims {
       algorithms: ['HS256'],
     }) as AuthClaims
     if (!decoded.sub || !decoded.jti) throw new Error('Malformed token')
-    if (decoded.typ && decoded.typ !== 'access') throw new Error('Wrong token type')
+    if (decoded.typ !== 'access') throw new Error('Wrong token type')
     return decoded
   } catch {
     throw AppError.unauthorized('Invalid or expired access token')

@@ -99,7 +99,10 @@ export function createApp({ prisma, container }: AppOptions): Express {
   app.use('/api/v1/hall', hallRouter(services))
   app.use('/api/v1/admin', adminRouter(services.admin))
   // Контракт под внешний фронт из конкурса (basalt-arena). Слушает `/api/mock/v1` и `/api/mock/v1/v2`.
-  app.use('/api/mock/v1', mockRouter(services))
+  // Никогда не монтируется в production — это dev-инструмент для внешнего конкурсного фронта.
+  if (env.NODE_ENV !== 'production') {
+    app.use('/api/mock/v1', mockRouter(services))
+  }
 
   app.use((req, res) => {
     if ((req.originalUrl ?? req.url ?? '').startsWith('/api/mock/')) {
