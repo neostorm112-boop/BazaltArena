@@ -186,6 +186,36 @@ conditionalDescribe('BFF integration', () => {
     expect(res.body.code).toBe('CONFLICT')
   })
 
+  // README + bff/prisma/seed.ts обещают demo-юзера `demo@basalt.arena` / `demo1234`.
+  // Эта связка задокументирована, поэтому ломать её нельзя.
+  it('seed-документация: demo@basalt.arena логинится с паролем demo1234', async () => {
+    const argon2 = await import('argon2')
+    const passwordHash = await argon2.hash('demo1234', { type: argon2.argon2id })
+    await prisma.user.create({
+      data: {
+        email: 'demo@basalt.arena',
+        handle: 'demo_player',
+        passwordHash,
+        role: 'USER',
+        avatarUrl: 'https://example.com/demo.png',
+      },
+    })
+
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'demo@basalt.arena', password: 'demo1234' })
+      .expect(200)
+    expect(login.body.accessToken).toBeTruthy()
+    expect(login.body.user.handle).toBe('demo_player')
+
+    const me = await request(app)
+      .get('/api/v1/me')
+      .set('Authorization', `Bearer ${login.body.accessToken}`)
+      .expect(200)
+    expect(me.body.user.handle).toBe('demo_player')
+    expect(me.body.profile.contacts.email).toBe('demo@basalt.arena')
+  })
+
   it('admin PATCH submission updates sprint metrics', async () => {
     const argon2 = await import('argon2')
     const hash = await argon2.hash('adminpass1', { type: argon2.argon2id })
