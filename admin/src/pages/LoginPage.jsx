@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { postLogin, setSession } from '../api.js'
+import { useEffect, useState } from 'react'
+import { clearSession, postLogin, setSession } from '../api.js'
 import { Button } from '../components/ui/button.jsx'
 import { Input } from '../components/ui/input.jsx'
 import { Label } from '../components/ui/label.jsx'
@@ -8,6 +8,13 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
+
+  // На странице логина любые сохранённые токены — заведомо протухшие
+  // (иначе RequireAuth не пустил бы сюда). Чистим, чтобы Authorization
+  // header из старой сессии не подмешивался в /auth/login.
+  useEffect(() => {
+    clearSession()
+  }, [])
 
   const submit = async (e) => {
     e.preventDefault()

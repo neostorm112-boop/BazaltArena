@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-import { api } from './api.js'
+import { api, clearSession } from './api.js'
 import { ShellLayout } from './components/ShellLayout.jsx'
 import { AchievementsPage } from './pages/AchievementsPage.jsx'
 import { AccessPage } from './pages/AccessPage.jsx'
@@ -22,6 +22,9 @@ function useAuthed() {
         await api('/me')
         if (c) setOk(true)
       } catch {
+        // Stale `basalt_admin_*` токены из прошлой сессии: чистим, чтобы
+        // следующий логин стартовал с пустого localStorage.
+        clearSession()
         if (c) setOk(false)
       } finally {
         if (c) setReady(true)
