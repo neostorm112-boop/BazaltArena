@@ -52,13 +52,15 @@ const baseSchema = z.object({
         : []
     ),
 
-  DEV_REGISTER_KEY: z.string().optional(),
+  DEV_REGISTER_KEY: z.string().min(1).optional(),
 })
 
 export type AppEnv = z.infer<typeof baseSchema>
 
 function applyDevDefaults(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  if (env.NODE_ENV === 'production') return env
+  // Дефолты применяются ТОЛЬКО при явном NODE_ENV=development|test.
+  // Любое другое значение (production, staging, undefined, опечатка) — секреты обязательны.
+  if (env.NODE_ENV !== 'development' && env.NODE_ENV !== 'test') return env
   const isTest = env.NODE_ENV === 'test'
   const defaults: NodeJS.ProcessEnv = {
     JWT_ACCESS_SECRET: 'basalt-dev-access-secret-please-change-me-32+chars',
@@ -86,6 +88,12 @@ export function loadEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv {
   }
   if (isProd && !result.data.REDIS_URL) {
     throw new Error('REDIS_URL is required in production')
+  }
+  if (isProd && !result.data.DEV_REGISTER_KEY) {
+    throw new Error(
+      'DEV_REGISTER_KEY is required in production: registration must be gated by a shared secret. ' +
+        'Set DEV_REGISTER_KEY in the environment.'
+    )
   }
 
   let corsOrigins = [...result.data.CORS_ORIGINS]
