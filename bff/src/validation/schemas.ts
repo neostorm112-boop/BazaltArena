@@ -276,13 +276,22 @@ export const adminUpsertAchievementBody = z
   .object({
     id: cuidParam.optional(),
     slug: z
-      .string()
-      .min(1)
-      .max(128)
-      .regex(/^[a-z0-9-]+$/),
-    title: z.string().min(1).max(256),
-    subtitle: z.string().min(1).max(512),
-    icon: z.string().min(1).max(128),
+      .string({ required_error: 'Укажите служебный ключ' })
+      .min(1, 'Укажите служебный ключ')
+      .max(128, 'Не длиннее 128 символов')
+      .regex(/^[a-z0-9_-]+$/, 'Латиница, цифры, дефис и подчёркивание'),
+    title: z
+      .string({ required_error: 'Укажите заголовок' })
+      .min(1, 'Укажите заголовок')
+      .max(256, 'Не длиннее 256 символов'),
+    subtitle: z
+      .string({ required_error: 'Укажите описание' })
+      .min(1, 'Укажите описание')
+      .max(512, 'Не длиннее 512 символов'),
+    icon: z
+      .string({ required_error: 'Укажите значок' })
+      .min(1, 'Укажите значок')
+      .max(128, 'Не длиннее 128 символов'),
   })
   .strict()
 

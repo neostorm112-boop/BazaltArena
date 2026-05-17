@@ -4,13 +4,40 @@ const REFRESH = 'basalt_admin_refresh'
 
 /** Ошибка HTTP API с кодом статуса (для UI: 403 vs миграции и т.д.) */
 export class ApiRequestError extends Error {
-  /** @param {string} message @param {{ status?: number, code?: string }} [meta] */
+  /**
+   * @param {string} message
+   * @param {{ status?: number, code?: string, fieldErrors?: Record<string,string>, issues?: Array<{field:string,code:string,message:string}> }} [meta]
+   */
   constructor(message, meta = {}) {
     super(message)
     this.name = 'ApiRequestError'
     this.status = meta.status
     this.code = meta.code
+    this.fieldErrors = meta.fieldErrors ?? null
+    this.issues = meta.issues ?? null
   }
+}
+
+/** Достать { field -> message } из тела ошибки Zod (issues + fieldErrors). */
+function extractFieldErrors(body) {
+  const out = {}
+  const d = body && typeof body === 'object' ? body.details : null
+  if (d && typeof d === 'object') {
+    if (Array.isArray(d.issues)) {
+      for (const i of d.issues) {
+        if (i && typeof i === 'object' && typeof i.field === 'string' && i.field !== '_') {
+          if (!out[i.field]) out[i.field] = String(i.message ?? 'Некорректное значение')
+        }
+      }
+    }
+    if (d.fieldErrors && typeof d.fieldErrors === 'object') {
+      for (const [field, msgs] of Object.entries(d.fieldErrors)) {
+        if (out[field]) continue
+        if (Array.isArray(msgs) && msgs[0]) out[field] = String(msgs[0])
+      }
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null
 }
 
 function getAccess() {
@@ -140,7 +167,14 @@ export async function api(path, opts = {}) {
   }
   if (!res.ok) {
     const msg = formatApiErrorMessage(res.status, data)
-    throw new ApiRequestError(msg, { status: res.status, code: data?.code })
+    const fieldErrors = extractFieldErrors(data)
+    const issues = Array.isArray(data?.details?.issues) ? data.details.issues : null
+    throw new ApiRequestError(msg, {
+      status: res.status,
+      code: data?.code,
+      fieldErrors,
+      issues,
+    })
   }
   return data
 }
