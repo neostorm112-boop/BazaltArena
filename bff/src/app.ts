@@ -29,7 +29,7 @@ export function createApp({ prisma, container }: AppOptions): Express {
   const app = express()
 
   app.disable('x-powered-by')
-  app.set('trust proxy', 1)
+  app.set('trust proxy', env.TRUST_PROXY)
   app.use(helmet({ contentSecurityPolicy: false }))
   app.use(compression())
   app.use(

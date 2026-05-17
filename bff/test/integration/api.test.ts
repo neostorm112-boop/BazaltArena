@@ -186,6 +186,58 @@ conditionalDescribe('BFF integration', () => {
     expect(res.body.code).toBe('CONFLICT')
   })
 
+  it('rate-limits brute-force login by email even when X-Forwarded-For is spoofed per request', async () => {
+    const prevDisabled = process.env.RATE_LIMIT_DISABLED
+    process.env.RATE_LIMIT_DISABLED = 'false'
+    try {
+      const victimEmail = 'spoof-victim@example.com'
+      const goodEmail = 'spoof-good@example.com'
+
+      await registerMember(app, {
+        email: victimEmail,
+        handle: 'spoofvictim',
+        password: 'correctpass1',
+      }).expect(201)
+      await registerMember(app, {
+        email: goodEmail,
+        handle: 'spoofgood',
+        password: 'correctpass1',
+      }).expect(201)
+
+      // Rotate X-Forwarded-For on every attempt; the IP-keyed limiter would let
+      // these through indefinitely, so the email-keyed limiter must trip.
+      let observed429 = false
+      for (let i = 0; i < 20 && !observed429; i += 1) {
+        const ip = `198.51.100.${(i % 250) + 1}`
+        const res = await request(app)
+          .post('/api/v1/auth/login')
+          .set('x-forwarded-for', ip)
+          .send({ email: victimEmail, password: 'wrongpass' })
+        if (res.status === 429) {
+          expect(res.body.code).toBe('RATE_LIMITED')
+          observed429 = true
+          break
+        }
+        expect([400, 401]).toContain(res.status)
+      }
+      expect(observed429).toBe(true)
+
+      // A different account from the same shared infra must still log in.
+      const ok = await request(app)
+        .post('/api/v1/auth/login')
+        .set('x-forwarded-for', '198.51.100.250')
+        .send({ email: goodEmail, password: 'correctpass1' })
+      expect(ok.status).toBe(200)
+      expect(ok.body.accessToken).toBeTruthy()
+    } finally {
+      if (prevDisabled === undefined) {
+        delete process.env.RATE_LIMIT_DISABLED
+      } else {
+        process.env.RATE_LIMIT_DISABLED = prevDisabled
+      }
+    }
+  })
+
   it('admin PATCH submission updates sprint metrics', async () => {
     const argon2 = await import('argon2')
     const hash = await argon2.hash('adminpass1', { type: argon2.argon2id })
