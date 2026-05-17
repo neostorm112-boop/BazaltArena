@@ -53,29 +53,60 @@ export interface AchievementGranter {
 }
 
 export function createAchievementGranter(prisma: PrismaClient): AchievementGranter {
-  async function grant(userId: string, slug: string): Promise<void> {
+  /**
+   * Idempotent grant. Relies on the compound unique (userId, achievementId, sprintId)
+   * with empty-string sprintId for non-sprint-bound achievements. `skipDuplicates`
+   * makes concurrent grants race-safe — at most one row will be inserted.
+   */
+  async function grant(userId: string, slug: string, sprintId = ''): Promise<void> {
     const achievement = await prisma.achievement.findUnique({ where: { slug } })
     if (!achievement) return
-    await prisma.userAchievement.upsert({
-      where: { userId_achievementId: { userId, achievementId: achievement.id } },
-      update: {},
-      create: { userId, achievementId: achievement.id },
+    await prisma.userAchievement.createMany({
+      data: [{ userId, achievementId: achievement.id, sprintId }],
+      skipDuplicates: true,
+    })
+  }
+
+  /**
+   * Reassign sprint_winner for `sprintId` to `newWinnerUserId`. Runs in one tx:
+   *   1. delete any prior winner rows for this sprint that belong to anybody else;
+   *   2. insert the new row (skipDuplicates makes the re-grant a no-op).
+   * This fixes the "winner sticks" bug — the old #1 loses the badge as soon as a
+   * higher-scoring solution surfaces in the same sprint.
+   */
+  async function reassignSprintWinner(sprintId: string, newWinnerUserId: string): Promise<void> {
+    const achievement = await prisma.achievement.findUnique({
+      where: { slug: 'sprint_winner' },
+    })
+    if (!achievement) return
+    await prisma.$transaction(async (tx) => {
+      await tx.userAchievement.deleteMany({
+        where: {
+          achievementId: achievement.id,
+          sprintId,
+          NOT: { userId: newWinnerUserId },
+        },
+      })
+      await tx.userAchievement.createMany({
+        data: [{ userId: newWinnerUserId, achievementId: achievement.id, sprintId }],
+        skipDuplicates: true,
+      })
     })
   }
 
   return {
     async onSubmissionUpsert({ userId, isCreate }) {
       if (!isCreate) return
-      const total = await prisma.submission.count({ where: { userId } })
-      if (total === 1) await grant(userId, 'first_submission')
+      // Drop the previous `count === 1` gate: two concurrent first-ever submissions
+      // could both pass `count === 1` (or both miss it). Just attempt the grant —
+      // the unique constraint + skipDuplicates makes it a no-op for repeat calls.
+      await grant(userId, 'first_submission')
     },
 
     async onSubmissionStatusChange({ userId, sprintId, submissionId, status, mentorScore }) {
       if (status !== 'ACCEPTED') return
-      const acceptedCount = await prisma.submission.count({
-        where: { userId, status: 'ACCEPTED' },
-      })
-      if (acceptedCount === 1) await grant(userId, 'first_accepted')
+      // Same idea: skip the fragile count==1 check. createMany skipDuplicates is idempotent.
+      await grant(userId, 'first_accepted')
       if (mentorScore >= 100) await grant(userId, 'score_100')
 
       const top = await prisma.submission.findFirst({
@@ -84,7 +115,7 @@ export function createAchievementGranter(prisma: PrismaClient): AchievementGrant
         select: { id: true, userId: true },
       })
       if (top && top.id === submissionId) {
-        await grant(top.userId, 'sprint_winner')
+        await reassignSprintWinner(sprintId, top.userId)
       }
     },
 

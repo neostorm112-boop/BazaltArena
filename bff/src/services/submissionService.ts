@@ -59,23 +59,24 @@ export function createSubmissionService(deps: {
       throw AppError.conflict('Sprint is already closed')
     }
     await assertCanSubmit(input.userId, input.sprintId)
-    const existing = await deps.submissions.findByUserAndSprint(input.userId, input.sprintId)
-    const row = await deps.submissions.upsert(input)
-    const isCreate = !existing
+    // Atomic upsert returns a race-safe `isCreate` (Postgres `xmax = 0`), so we no
+    // longer do a separate findByUserAndSprint — two concurrent calls would both have
+    // seen "no existing row" and fired onSubmissionUpsert with isCreate=true twice.
+    const { submission, isCreate } = await deps.submissions.upsert(input)
     await deps.onAfterSubmission?.(input.sprintId)
     if (deps.onAfterSubmissionUpsert) {
       try {
         await deps.onAfterSubmissionUpsert({
           userId: input.userId,
           sprintId: input.sprintId,
-          submissionId: row.id,
+          submissionId: submission.id,
           isCreate,
         })
       } catch {
         /* achievement check must not break submission flow */
       }
     }
-    return { ...row, isCreate }
+    return { ...submission, isCreate }
   }
 
   return {

@@ -178,7 +178,11 @@ model UserAchievement {
   userId         String
   achievement    Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
   achievementId  String
+  /// Sprint binding for sprint-scoped achievements (e.g. sprint_winner).
+  /// Empty string for non-sprint-bound achievements so the compound unique works as
+  /// "one row per user+achievement+sprint" (PG default treats NULLs as distinct).
+  sprintId       String      @default("")
   earnedAt       DateTime    @default(now())
 
-  @@unique([userId, achievementId])
+  @@unique([userId, achievementId, sprintId])
 }

@@ -491,9 +491,15 @@ async function main() {
       const achievement = achievementBySlug.get(achievementSlug)
       if (!achievement) continue
       await prisma.userAchievement.upsert({
-        where: { userId_achievementId: { userId: user.id, achievementId: achievement.id } },
+        where: {
+          userId_achievementId_sprintId: {
+            userId: user.id,
+            achievementId: achievement.id,
+            sprintId: '',
+          },
+        },
         update: {},
-        create: { userId: user.id, achievementId: achievement.id },
+        create: { userId: user.id, achievementId: achievement.id, sprintId: '' },
       })
     }
   }
