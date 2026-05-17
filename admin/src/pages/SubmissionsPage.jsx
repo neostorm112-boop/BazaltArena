@@ -512,9 +512,20 @@ export function SubmissionsPage() {
                     type="number"
                     min={0}
                     max={100}
+                    step={1}
                     className="mt-1"
                     value={score}
-                    onChange={(e) => setScore(Number(e.target.value))}
+                    onChange={(e) => {
+                      const raw = Number(e.target.value)
+                      // Mirror the server-side z.number().int().min(0).max(100) so the
+                      // user never has a typo silently clamped to 0 by the DB layer.
+                      if (Number.isNaN(raw)) {
+                        setScore(0)
+                        return
+                      }
+                      const clamped = Math.max(0, Math.min(100, Math.round(raw)))
+                      setScore(clamped)
+                    }}
                   />
                   <HintRow className="mt-1.5" icon="stars">
                     Итоговая оценка видна участнику в истории спринта вместе с комментарием.

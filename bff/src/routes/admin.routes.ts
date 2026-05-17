@@ -107,6 +107,7 @@ export function adminRouter(admin: AdminService) {
     '/sprints',
     asyncHandler(async (req, res) => {
       const body = adminCreateSprintBody.parse(req.body)
+      // allowPast is a validation-time opt-in only; never persisted on the sprint row.
       const sprint = await admin.createSprint(actorId(req), {
         slug: body.slug,
         title: body.title,
@@ -150,12 +151,14 @@ export function adminRouter(admin: AdminService) {
     asyncHandler(async (req, res) => {
       const { id } = adminSprintIdParams.parse(req.params)
       const body = adminPatchSprintBody.parse(req.body)
-      const data: Record<string, unknown> = { ...body }
-      if (body.startsAt !== undefined) {
-        data.startsAt = body.startsAt === null ? null : new Date(body.startsAt)
+      // allowPast is a validation-time opt-in only; never persisted on the sprint row.
+      const { allowPast: _allowPast, ...rest } = body
+      const data: Record<string, unknown> = { ...rest }
+      if (rest.startsAt !== undefined) {
+        data.startsAt = rest.startsAt === null ? null : new Date(rest.startsAt)
       }
-      if (body.endsAt !== undefined) {
-        data.endsAt = body.endsAt === null ? null : new Date(body.endsAt)
+      if (rest.endsAt !== undefined) {
+        data.endsAt = rest.endsAt === null ? null : new Date(rest.endsAt)
       }
       const sprint = await admin.patchSprint(actorId(req), id, data as never)
       return respondSuccess(res, { sprint })
