@@ -160,4 +160,54 @@ describe('authService.refresh & logout', () => {
       code: 'UNAUTHORIZED',
     })
   })
+
+  it('detects refresh-token replay: parallel refreshes → 1 session + audit event', async () => {
+    const users = makeInMemoryUserRepo([
+      makeUser({ id: 'u_1', email: 'a@b.c', passwordHash: `${FAKE_HASH}:pw` }),
+    ])
+    const auditEvents: Array<{ actorId: string; action: string; details: unknown }> = []
+    const memberAudit = {
+      async log(actorId: string, action: string, details: unknown) {
+        auditEvents.push({ actorId, action, details })
+      },
+    }
+    const service = createAuthService({
+      users,
+      hashPassword: fakeHash,
+      verifyPassword: fakeVerify,
+      memberAudit,
+    })
+    const initial = await service.login({ loginOrEmail: 'a@b.c', password: 'pw' })
+
+    const [first, second] = await Promise.allSettled([
+      service.refresh({ refreshToken: initial.refreshToken }),
+      service.refresh({ refreshToken: initial.refreshToken }),
+    ])
+
+    const fulfilled = [first, second].filter((r) => r.status === 'fulfilled')
+    const rejected = [first, second].filter((r) => r.status === 'rejected')
+    expect(fulfilled).toHaveLength(1)
+    expect(rejected).toHaveLength(1)
+
+    const rejectedReason = (rejected[0] as PromiseRejectedResult).reason
+    expect(rejectedReason).toBeInstanceOf(AppError)
+    expect(rejectedReason).toMatchObject({ code: 'UNAUTHORIZED', status: 401 })
+
+    // Family was revoked on replay → even the freshly-issued session must be dead.
+    const winner = (fulfilled[0] as PromiseFulfilledResult<typeof initial>).value
+    expect(await isSessionActive(initial.jti)).toBe(false)
+    expect(await isSessionActive(winner.jti)).toBe(false)
+
+    // A subsequent refresh with the winner's token must also fail — family is gone.
+    await expect(service.refresh({ refreshToken: winner.refreshToken })).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+    })
+
+    const replayEvents = auditEvents.filter((e) => e.action === 'AUTH_REFRESH_REPLAY')
+    expect(replayEvents).toHaveLength(1)
+    expect(replayEvents[0]).toMatchObject({
+      actorId: 'u_1',
+      details: { jti: initial.jti, familyId: initial.familyId, outcome: 'replay' },
+    })
+  })
 })
