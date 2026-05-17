@@ -14,6 +14,7 @@ function baseProdEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     JWT_REFRESH_SECRET: STRONG_REFRESH,
     CORS_ORIGINS: 'https://example.com',
     DEV_REGISTER_KEY: 'prod-register-secret',
+    TRUST_PROXY: '1',
     ...overrides,
   }
 }
