@@ -33,8 +33,20 @@ export interface Container {
   meta: ReturnType<typeof createMetaService>
 }
 
+/** Тип таргетированного user-события (string union из realtime). */
+export type UserNotifierEvent = 'submission:reviewed' | 'achievement:granted' | 'solution:liked'
+
+/** Сигнатура callback, который доставляет событие конкретному пользователю. */
+export type UserNotifier = (
+  userId: string,
+  event: UserNotifierEvent,
+  payload: Record<string, unknown>
+) => void
+
 export type BuildContainerOptions = {
   notifyDataUpdated?: (detail: AdminDataChangeDetail) => void
+  /** Точечная WebSocket-отправка события пользователю (только владельцу решения и т.п.). */
+  notifyUser?: UserNotifier
 }
 
 export function buildContainer(prisma: PrismaClient, opts?: BuildContainerOptions): Container {
@@ -50,11 +62,19 @@ export function buildContainer(prisma: PrismaClient, opts?: BuildContainerOption
   const achievementGranter = createAchievementGranter(prisma)
   const meta = createMetaService({ prisma })
   const notify = opts?.notifyDataUpdated
+  const notifyUser = opts?.notifyUser
   const recalc = (sprintId: string) => metrics.recalculate(sprintId).catch(() => undefined)
   const recalcAndNotifyHall = async (sprintId: string) => {
     await recalc(sprintId)
     try {
       notify?.({ entity: 'submission' })
+    } catch {
+      /* */
+    }
+    // Инвалидируем мета-кэш (статистика по спринтам тоже могла измениться).
+    try {
+      const { invalidate, CacheKeys } = await import('./infra/cache.js')
+      await invalidate(CacheKeys.metaPattern())
     } catch {
       /* */
     }
@@ -98,7 +118,8 @@ export function buildContainer(prisma: PrismaClient, opts?: BuildContainerOption
       metrics,
       opts?.notifyDataUpdated,
       memberNotifications,
-      achievementGranter
+      achievementGranter,
+      notifyUser
     ),
     memberAudit,
     achievementGranter,
