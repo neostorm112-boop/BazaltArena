@@ -62,7 +62,7 @@ export function mockRouter(container: Container) {
           const { verifyAccessToken } = await import('../middleware/auth.js')
           const claims = verifyAccessToken(header.slice(7))
           await container.auth.logout(claims.jti)
-          await container.memberAudit.log(claims.sub, 'AUTH_LOGOUT', {}).catch(() => undefined)
+          await container.memberAudit.log(claims.sub, 'AUTH_LOGOUT', {})
         } catch {
           /* ignore */
         }

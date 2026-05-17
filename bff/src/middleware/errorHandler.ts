@@ -70,10 +70,15 @@ function mapError(error: unknown, req: Request): { status: number; body: ErrorBo
       const target = Array.isArray(error.meta?.target)
         ? (error.meta!.target as string[]).join(',')
         : String(error.meta?.target ?? 'value')
-      req.log?.warn({ err: error }, 'Prisma unique constraint conflict')
+      // Log the offending field internally for debugging; never leak it in the HTTP body.
+      req.log?.warn({ err: error, target }, 'Prisma unique constraint conflict')
       return {
         status: 409,
-        body: { code: 'CONFLICT', message: `Duplicate ${target}`, requestId },
+        body: {
+          code: 'CONFLICT_UNIQUE',
+          message: 'Resource already exists',
+          requestId,
+        },
       }
     }
     if (error.code === 'P2025') {

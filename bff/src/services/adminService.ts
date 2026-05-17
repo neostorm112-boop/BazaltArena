@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { normalizeDatesForBecomeActive } from '../domain/sprintArenaSchedule.js'
 import { AppError } from '../errors/AppError.js'
+import { safeAudit as runSafeAudit } from '../infra/safeAudit.js'
 import type { AdminRepository, AdminUserListRow } from '../repositories/adminRepo.js'
 import type { AdminPatchUserBody } from '../validation/schemas.js'
 
@@ -70,15 +71,15 @@ async function safeAudit(
   action: string,
   details: Record<string, unknown>
 ) {
-  try {
-    await db.appendAuditLog({
-      actorId,
-      action,
-      details: details as Prisma.JsonObject,
-    })
-  } catch {
-    /* аудит не должен ломать админ-операции */
-  }
+  await runSafeAudit(
+    () =>
+      db.appendAuditLog({
+        actorId,
+        action,
+        details: details as Prisma.JsonObject,
+      }),
+    { actorId, action }
+  )
 }
 
 import type { MemberNotificationService } from './memberNotificationService.js'
