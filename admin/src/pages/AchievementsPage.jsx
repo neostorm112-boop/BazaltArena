@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { api } from '../api.js'
+import { api, ApiRequestError } from '../api.js'
 import { Button } from '../components/ui/button.jsx'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../components/ui/dialog.jsx'
 import { HintRow } from '../components/ui/hint-row.jsx'
@@ -78,6 +78,7 @@ export function AchievementsPage() {
     subtitle: '',
     icon: DEFAULT_MATERIAL_ICON,
   })
+  const [fieldErrors, setFieldErrors] = useState({})
   const [sprintId, setSprintId] = useState('')
 
   const { data, isPending } = useQuery({
@@ -94,10 +95,18 @@ export function AchievementsPage() {
     mutationFn: (body) => api('/admin/achievements', { method: 'PUT', body: JSON.stringify(body) }),
     onSuccess: () => {
       toast.success('Ачивка сохранена')
+      setFieldErrors({})
       void qc.invalidateQueries({ queryKey: ['admin', 'achievements'] })
       setEditor(null)
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : 'Ошибка'),
+    onError: (e) => {
+      if (e instanceof ApiRequestError && e.fieldErrors) {
+        setFieldErrors(e.fieldErrors)
+      } else {
+        setFieldErrors({})
+      }
+      toast.error(e instanceof Error ? e.message : 'Ошибка')
+    },
   })
 
   const grantMut = useMutation({
@@ -114,6 +123,7 @@ export function AchievementsPage() {
 
   const openNew = () => {
     setForm({ id: '', slug: '', title: '', subtitle: '', icon: DEFAULT_MATERIAL_ICON })
+    setFieldErrors({})
     setEditor('new')
   }
 
@@ -125,7 +135,17 @@ export function AchievementsPage() {
       subtitle: a.subtitle,
       icon: a.icon?.trim() || DEFAULT_MATERIAL_ICON,
     })
+    setFieldErrors({})
     setEditor('edit')
+  }
+
+  const clearFieldError = (name) => {
+    setFieldErrors((errs) => {
+      if (!errs[name]) return errs
+      const next = { ...errs }
+      delete next[name]
+      return next
+    })
   }
 
   return (
@@ -144,7 +164,15 @@ export function AchievementsPage() {
         </Button>
       </div>
 
-      <Dialog open={editor !== null} onOpenChange={(o) => !o && setEditor(null)}>
+      <Dialog
+        open={editor !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setEditor(null)
+            setFieldErrors({})
+          }
+        }}
+      >
         <DialogContent>
           <DialogTitle>{editor === 'new' ? 'Новая ачивка' : 'Редактирование'}</DialogTitle>
           <DialogDescription className="sr-only">
@@ -174,10 +202,20 @@ export function AchievementsPage() {
               <Input
                 className="mt-1 font-mono text-xs"
                 value={form.slug}
-                onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, slug: e.target.value }))
+                  clearFieldError('slug')
+                }}
+                aria-invalid={fieldErrors.slug ? 'true' : undefined}
               />
+              {fieldErrors.slug ? (
+                <p className="mt-1 text-xs text-red-400" role="alert">
+                  {fieldErrors.slug}
+                </p>
+              ) : null}
               <HintRow className="mt-1.5" icon="tag">
-                Латиница без пробелов — так награда связывается с выдачами и логами.
+                Латиница, цифры, дефис и подчёркивание — так награда связывается с выдачами и
+                логами.
               </HintRow>
             </div>
             <div>
@@ -185,16 +223,34 @@ export function AchievementsPage() {
               <Input
                 className="mt-1"
                 value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, title: e.target.value }))
+                  clearFieldError('title')
+                }}
+                aria-invalid={fieldErrors.title ? 'true' : undefined}
               />
+              {fieldErrors.title ? (
+                <p className="mt-1 text-xs text-red-400" role="alert">
+                  {fieldErrors.title}
+                </p>
+              ) : null}
             </div>
             <div>
               <Label>Описание</Label>
               <Input
                 className="mt-1"
                 value={form.subtitle}
-                onChange={(e) => setForm((f) => ({ ...f, subtitle: e.target.value }))}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, subtitle: e.target.value }))
+                  clearFieldError('subtitle')
+                }}
+                aria-invalid={fieldErrors.subtitle ? 'true' : undefined}
               />
+              {fieldErrors.subtitle ? (
+                <p className="mt-1 text-xs text-red-400" role="alert">
+                  {fieldErrors.subtitle}
+                </p>
+              ) : null}
             </div>
             <div>
               <Label>Значок</Label>
@@ -231,11 +287,27 @@ export function AchievementsPage() {
                 className="mt-2 font-mono text-xs"
                 placeholder="Например emoji_events или смайл"
                 value={form.icon}
-                onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, icon: e.target.value }))
+                  clearFieldError('icon')
+                }}
+                aria-invalid={fieldErrors.icon ? 'true' : undefined}
               />
+              {fieldErrors.icon ? (
+                <p className="mt-1 text-xs text-red-400" role="alert">
+                  {fieldErrors.icon}
+                </p>
+              ) : null}
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setEditor(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setEditor(null)
+                  setFieldErrors({})
+                }}
+              >
                 Отмена
               </Button>
               <Button type="submit" variant="gradient" disabled={saveMut.isPending}>

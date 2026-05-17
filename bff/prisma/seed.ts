@@ -246,6 +246,19 @@ const DEMO_USERS: SeedUser[] = [
     moneyEarned: 0,
   },
   {
+    email: 'demo@basalt.arena',
+    handle: 'demo_player',
+    role: UserRole.USER,
+    bio: 'Demo-аккаунт из README. Логиньтесь, чтобы быстро посмотреть платформу.',
+    skillsLabel: 'Demo account',
+    realName: 'Demo Player',
+    stack: ['Demo'],
+    telegram: '@demo_player',
+    githubUrl: '/demo-player',
+    points: 0,
+    moneyEarned: 0,
+  },
+  {
     email: 'lina@example.com',
     handle: 'pixel_runner',
     role: UserRole.USER,
@@ -491,9 +504,15 @@ async function main() {
       const achievement = achievementBySlug.get(achievementSlug)
       if (!achievement) continue
       await prisma.userAchievement.upsert({
-        where: { userId_achievementId: { userId: user.id, achievementId: achievement.id } },
+        where: {
+          userId_achievementId_sprintId: {
+            userId: user.id,
+            achievementId: achievement.id,
+            sprintId: '',
+          },
+        },
         update: {},
-        create: { userId: user.id, achievementId: achievement.id },
+        create: { userId: user.id, achievementId: achievement.id, sprintId: '' },
       })
     }
   }

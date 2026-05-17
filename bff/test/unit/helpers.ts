@@ -173,7 +173,7 @@ export function makeInMemorySubmissionRepo(initial: Submission[] = []): Submissi
           updatedAt: new Date(),
         }
         byId.set(existing.id, updated)
-        return updated
+        return { submission: updated, isCreate: false }
       }
       const id = `s_${byId.size + 1}`
       const created: Submission = {
@@ -190,7 +190,7 @@ export function makeInMemorySubmissionRepo(initial: Submission[] = []): Submissi
         updatedAt: new Date(),
       }
       byId.set(id, created)
-      return created
+      return { submission: created, isCreate: true }
     },
     async incrementLikes(id, delta) {
       const found = byId.get(id)
@@ -221,6 +221,8 @@ export function makeInMemorySprintRepo(
     completedLabel: 'Активный',
     tags: [] as string[],
     active: s.active ?? false,
+    published: true,
+    archived: false,
     startsAt: null,
     endsAt: s.endsAt ?? null,
     brief: {},

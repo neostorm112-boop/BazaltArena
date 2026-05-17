@@ -6,7 +6,81 @@ export const cuidParam = z.string().cuid()
 /** Prisma `SubmissionStatus` — для админ-фильтров и PATCH. */
 export const submissionStatusEnum = z.enum(['PENDING', 'REVIEWED', 'ACCEPTED', 'REJECTED'])
 
-const urlOrEmpty = z.union([z.string().url(), z.literal('')])
+const REPO_URL_MAX = 500
+
+/**
+ * Private / link-local hosts that we never want to accept in a user-submitted URL.
+ * Blocks the obvious SSRF entry points (cloud metadata, internal services, loopback).
+ * The list is intentionally pattern-based rather than parsed as IPs because users
+ * occasionally type host names (`localhost.localdomain`) that resolve to loopback.
+ */
+const PRIVATE_HOST_PATTERNS: RegExp[] = [
+  /^localhost$/i,
+  /\.localhost$/i,
+  /^127(?:\.\d{1,3}){3}$/,
+  /^0(?:\.\d{1,3}){3}$/,
+  /^10(?:\.\d{1,3}){3}$/,
+  /^192\.168(?:\.\d{1,3}){2}$/,
+  /^172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}$/,
+  /^169\.254(?:\.\d{1,3}){2}$/,
+  /^::1$/,
+  /^fe80:/i,
+  /^fc[0-9a-f]{2}:/i,
+  /^fd[0-9a-f]{2}:/i,
+]
+
+function isPrivateHost(host: string): boolean {
+  const cleaned = host.replace(/^\[/, '').replace(/\]$/, '').trim()
+  if (!cleaned) return true
+  return PRIVATE_HOST_PATTERNS.some((re) => re.test(cleaned))
+}
+
+function allowPrivateRepoHosts(): boolean {
+  const flag = process.env.ALLOW_PRIVATE_REPO_URLS
+  return flag === '1' || flag === 'true'
+}
+
+/**
+ * Strict URL validator for repository / demo links coming from members and admins.
+ * Rejects:
+ *   - any scheme other than http/https
+ *   - lengths above {@link REPO_URL_MAX}
+ *   - hosts on loopback / private / link-local networks (SSRF guard; can be relaxed
+ *     in dev via the `ALLOW_PRIVATE_REPO_URLS` env flag)
+ */
+export const repoUrlSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(REPO_URL_MAX)
+  .superRefine((raw, ctx) => {
+    let url: URL
+    try {
+      url = new URL(raw)
+    } catch {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid URL' })
+      return
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Only http/https URLs are allowed',
+      })
+      return
+    }
+    if (!url.hostname) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'URL must include a hostname' })
+      return
+    }
+    if (!allowPrivateRepoHosts() && isPrivateHost(url.hostname)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Private / internal hosts are not allowed',
+      })
+    }
+  })
+
+const urlOrEmpty = z.union([repoUrlSchema, z.literal('')])
 
 /** Same rules as registration handle (after optional leading `@`). */
 const usernameOrHandleShape = z
@@ -55,7 +129,7 @@ export const meProfilePatchBody = z
 
 export const submissionUpsertBody = z
   .object({
-    repoUrl: z.string().url().max(2048),
+    repoUrl: repoUrlSchema,
     demoUrl: urlOrEmpty.optional(),
   })
   .strict()
@@ -146,6 +220,43 @@ export const adminPatchUserBody = z
 
 export type AdminPatchUserBody = z.infer<typeof adminPatchUserBody>
 
+/**
+ * Refuses sprint windows that land entirely in the past — admins were creating
+ * sprints with backdated `startsAt`/`endsAt` and the system silently flipped them
+ * straight to "Завершённый". Setting `allowPast: true` is an explicit opt-in for
+ * the rare case where you really do want to backfill a past sprint.
+ *
+ * `endsAt` is treated as the load-bearing signal: if it is in the future the
+ * sprint is "still happening" and the start date can legitimately be in the past.
+ * If `endsAt` is missing or null we fall back to `startsAt`.
+ */
+function refineSprintDates(
+  body: { startsAt?: string | null; endsAt?: string | null; allowPast?: boolean },
+  ctx: z.RefinementCtx
+) {
+  if (body.allowPast) return
+  const now = Date.now()
+  const ends = body.endsAt ? Date.parse(body.endsAt) : Number.NaN
+  const starts = body.startsAt ? Date.parse(body.startsAt) : Number.NaN
+  if (Number.isFinite(ends)) {
+    if (ends <= now) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'endsAt must be in the future (set allowPast: true to override)',
+        path: ['endsAt'],
+      })
+    }
+    return
+  }
+  if (Number.isFinite(starts) && starts < now) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'startsAt must be in the future (set allowPast: true to override)',
+      path: ['startsAt'],
+    })
+  }
+}
+
 export const adminCreateSprintBody = z
   .object({
     slug: z
@@ -165,8 +276,10 @@ export const adminCreateSprintBody = z
     metrics: z.record(z.unknown()).default({}),
     startsAt: z.union([z.string().datetime(), z.null()]).optional(),
     endsAt: z.union([z.string().datetime(), z.null()]).optional(),
+    allowPast: z.boolean().optional(),
   })
   .strict()
+  .superRefine(refineSprintDates)
 
 export const adminBatchSprintAccessBody = z
   .object({
@@ -202,9 +315,23 @@ export const adminPatchSprintBody = z
       .regex(/^[a-z0-9-]+$/)
       .optional(),
     tabIcon: z.union([z.string().max(64), z.null()]).optional(),
+    allowPast: z.boolean().optional(),
   })
   .strict()
-  .refine((b) => Object.keys(b).length > 0, { message: 'At least one field is required' })
+  .refine(
+    (b) => {
+      const keys = Object.keys(b).filter((k) => k !== 'allowPast')
+      return keys.length > 0
+    },
+    { message: 'At least one field is required' }
+  )
+  .superRefine((b, ctx) => {
+    // Only validate the dates that are actually being changed. Patching an unrelated
+    // field on an already-past sprint should not start failing because of historical
+    // dates we never asked to touch.
+    if (b.startsAt === undefined && b.endsAt === undefined) return
+    refineSprintDates(b, ctx)
+  })
 
 export const adminSprintIdParams = z.object({ id: cuidParam }).strict()
 
@@ -255,10 +382,10 @@ export const adminSubmissionIdParams = z.object({ id: cuidParam }).strict()
 
 export const adminPatchSubmissionBody = z
   .object({
-    mentorScore: z.coerce.number().int().min(0).max(100).optional(),
+    mentorScore: z.number().int().min(0).max(100).optional(),
     status: submissionStatusEnum.optional(),
-    repoUrl: z.string().url().max(2048).optional(),
-    demoUrl: z.union([z.string().url().max(2048), z.null()]).optional(),
+    repoUrl: repoUrlSchema.optional(),
+    demoUrl: z.union([repoUrlSchema, z.null()]).optional(),
     mentorComment: z
       .union([z.string().max(8000), z.literal(''), z.null()])
       .optional()
@@ -276,13 +403,22 @@ export const adminUpsertAchievementBody = z
   .object({
     id: cuidParam.optional(),
     slug: z
-      .string()
-      .min(1)
-      .max(128)
-      .regex(/^[a-z0-9-]+$/),
-    title: z.string().min(1).max(256),
-    subtitle: z.string().min(1).max(512),
-    icon: z.string().min(1).max(128),
+      .string({ required_error: 'Укажите служебный ключ' })
+      .min(1, 'Укажите служебный ключ')
+      .max(128, 'Не длиннее 128 символов')
+      .regex(/^[a-z0-9_-]+$/, 'Латиница, цифры, дефис и подчёркивание'),
+    title: z
+      .string({ required_error: 'Укажите заголовок' })
+      .min(1, 'Укажите заголовок')
+      .max(256, 'Не длиннее 256 символов'),
+    subtitle: z
+      .string({ required_error: 'Укажите описание' })
+      .min(1, 'Укажите описание')
+      .max(512, 'Не длиннее 512 символов'),
+    icon: z
+      .string({ required_error: 'Укажите значок' })
+      .min(1, 'Укажите значок')
+      .max(128, 'Не длиннее 128 символов'),
   })
   .strict()
 

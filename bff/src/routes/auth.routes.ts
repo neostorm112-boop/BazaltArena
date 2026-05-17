@@ -3,7 +3,14 @@ import { respondCreated, respondSuccess } from '../api/http/respond.js'
 import type { Container } from '../container.js'
 import { requireAuth } from '../middleware/auth.js'
 import { asyncHandler } from '../middleware/asyncHandler.js'
-import { loginLimiter, refreshLimiter, registerLimiter } from '../middleware/rateLimit.js'
+import {
+  loginEmailLimiter,
+  loginLimiter,
+  refreshLimiter,
+  refreshTokenLimiter,
+  registerEmailLimiter,
+  registerLimiter,
+} from '../middleware/rateLimit.js'
 import { authLoginBody, authRefreshBody, authRegisterBody } from '../validation/schemas.js'
 
 export function authRouter(container: Container) {
@@ -12,6 +19,7 @@ export function authRouter(container: Container) {
   router.post(
     '/login',
     loginLimiter,
+    loginEmailLimiter,
     asyncHandler(async (req, res) => {
       const { email, password } = authLoginBody.parse(req.body)
       const result = await container.auth.login({ loginOrEmail: email, password })
@@ -22,6 +30,7 @@ export function authRouter(container: Container) {
   router.post(
     '/register',
     registerLimiter,
+    registerEmailLimiter,
     asyncHandler(async (req, res) => {
       const data = authRegisterBody.parse(req.body)
       const devKey = req.headers['x-dev-register-key']
@@ -36,6 +45,7 @@ export function authRouter(container: Container) {
   router.post(
     '/refresh',
     refreshLimiter,
+    refreshTokenLimiter,
     asyncHandler(async (req, res) => {
       const { refreshToken } = authRefreshBody.parse(req.body)
       const result = await container.auth.refresh({ refreshToken })

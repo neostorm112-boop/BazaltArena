@@ -117,6 +117,7 @@ const toc = [
   { id: 'achievements', label: 'Система ачивок' },
   { id: 'admin', label: 'Возможности админки' },
   { id: 'errors', label: 'Обработка ошибок' },
+  { id: 'ops', label: 'Операционная зрелость' },
   { id: 'quickstart', label: 'Quick Start' },
 ]
 
@@ -573,7 +574,12 @@ export function DocumentationPage() {
                 ['FORBIDDEN', '403', 'Нет нужной роли для действия'],
                 ['NOT_FOUND', '404', 'Ресурс не найден'],
                 ['VALIDATION_ERROR', '400', 'Данные не прошли Zod-валидацию'],
-                ['CONFLICT', '409', 'Нарушение уникального ограничения (напр., дубль email)'],
+                ['CONFLICT', '409', 'Доменный конфликт состояния (например, спринт уже закрыт)'],
+                [
+                  'CONFLICT_UNIQUE',
+                  '409',
+                  'Нарушение уникального ограничения (имя поля не раскрывается)',
+                ],
                 ['RATE_LIMITED', '429', 'Превышен лимит запросов'],
                 ['INTERNAL_ERROR', '500', 'Непредвиденная ошибка на сервере'],
               ]}
@@ -588,6 +594,109 @@ export function DocumentationPage() {
               Контракт ошибки так же важен, как контракт успешного ответа. Если код меняется — это
               breaking change.
             </Note>
+
+            {/* ── ОПЕРАЦИОННАЯ ЗРЕЛОСТЬ ── */}
+            <H2 id="ops">Операционная зрелость</H2>
+            <p>
+              Бэк готов к работе в проде, а не только в локалке. Ниже — пять механизмов, которые
+              отличают учебный проект от боевого сервиса.
+            </p>
+
+            <H3>Метрики Prometheus</H3>
+            <p>
+              Эндпоинт <Code>GET /metrics</Code> отдаёт текст в формате Prometheus scrape. Собираем
+              default Node.js метрики (CPU, heap, event loop lag, GC) и две кастомные:
+              <Code>http_requests_total</Code> (счётчик) и{' '}
+              <Code>http_request_duration_seconds</Code> (гистограмма latency). Лейбл{' '}
+              <Code>route</Code> — это шаблон Express (<Code>/api/v1/sprints/:id</Code>), а не
+              конкретный URL — это ограничивает cardinality, чтобы Prometheus не вырос на миллионах
+              уникальных значений.
+            </p>
+
+            <H3>Health-чеки</H3>
+            <Table
+              headers={['Эндпоинт', 'Что проверяет', 'Где использовать']}
+              rows={[
+                [
+                  <Code key="h1">GET /api/v1/health</Code>,
+                  'Только что процесс жив (liveness)',
+                  'k8s livenessProbe — рестарт при зависании',
+                ],
+                [
+                  <Code key="h2">GET /api/v1/health/ready</Code>,
+                  'Postgres + Redis ping с таймаутом 1 сек',
+                  'readinessProbe / nginx upstream — отключение от балансера если deps лежат',
+                ],
+              ]}
+            />
+            <p>
+              Readiness возвращает 200 если все зависимости отвечают, иначе 503 — стандартный
+              паттерн для оркестрации.
+            </p>
+
+            <H3>Idempotency-Key</H3>
+            <p>
+              Защита от двойной отправки решения при ретрае на плохой сети. Клиент передаёт
+              заголовок <Code>Idempotency-Key</Code> (8-128 символов). При первом запросе ответ
+              сохраняется в Redis (TTL 24 ч), при повторе — отдаётся кэшированный с заголовком{' '}
+              <Code>Idempotent-Replay: true</Code>. 4xx ответы кэшируются, 5xx нет — даём шанс
+              повторить серверный сбой.
+            </p>
+            <Diagram title="Сценарий ретрая на плохой сети">
+              {`  Клиент                            BFF                          Redis
+    │                                │                              │
+    │── POST /submissions ──────────▶│                              │
+    │   Idempotency-Key: abc123      │── GET idem:abc123 ──────────▶│
+    │                                │   (нет)                      │
+    │                                │── создал submission          │
+    │                                │── SET idem:abc123 = response ▶│
+    │◀── 201 Created ────────────────│                              │
+    │
+    │   [сеть упала, ретрай]
+    │── POST /submissions ──────────▶│                              │
+    │   Idempotency-Key: abc123      │── GET idem:abc123 ──────────▶│
+    │                                │   (есть кэшированный ответ)  │
+    │◀── 201 Created ────────────────│                              │
+    │   Idempotent-Replay: true                                     │`}
+            </Diagram>
+
+            <H3>Redis-кэш для read-эндпоинтов</H3>
+            <p>
+              <Code>/api/v1/meta</Code> (статистика проекта) кэшируется в Redis на 60 секунд. При
+              write-операциях через админку кэш инвалидируется автоматически (
+              <Code>invalidate(CacheKeys.metaPattern())</Code>). В ответе заголовок{' '}
+              <Code>X-Cache-TTL: 60</Code>. <Code>/hall</Code> намеренно не кэшируется — ответ
+              персональный (<Code>likedByMe</Code> per user), такой кэш не окупается.
+            </p>
+
+            <H3>Live-обновления через Socket.io</H3>
+            <p>
+              При подключении сокет автоматически входит в комнату <Code>user:&lt;userId&gt;</Code>.
+              Это позволяет слать таргетированные события — когда ментор принимает решение, владелец
+              видит результат мгновенно, без F5.
+            </p>
+            <Table
+              headers={['Событие', 'Когда отправляется', 'Кому']}
+              rows={[
+                [
+                  <Code key="e1">submission:reviewed</Code>,
+                  'Ментор изменил статус/score/комментарий',
+                  'Владельцу решения',
+                ],
+                [<Code key="e2">achievement:granted</Code>, 'Выдана новая ачивка', 'Получателю'],
+                [<Code key="e3">solution:liked</Code>, 'Кто-то лайкнул решение', 'Автору решения'],
+                [<Code key="e4">DATA_UPDATED</Code>, 'Изменились общие списки', 'Всем (broadcast)'],
+              ]}
+            />
+            <Diagram title="Подключение клиента">
+              {`import { io } from 'socket.io-client'
+
+const socket = io('/', { auth: { token: accessToken } })
+socket.on('submission:reviewed', (e) => {
+  // e.status, e.mentorScore, e.mentorComment, e.at
+  showToast(\`Решение \${e.status}: \${e.mentorScore} баллов\`)
+})`}
+            </Diagram>
 
             {/* ── QUICK START ── */}
             <H2 id="quickstart">Quick Start for Developers</H2>

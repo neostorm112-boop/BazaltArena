@@ -1,7 +1,11 @@
 import { Prisma, type PrismaClient, type UserRole } from '@prisma/client'
 import { AppError } from '../errors/AppError.js'
 import { normalizeDatesForBecomeActive } from '../domain/sprintArenaSchedule.js'
-import { createSprintWithExclusiveActive, updateSprintWithExclusiveActive } from './sprintRepo.js'
+import {
+  createSprintWithExclusiveActive,
+  setActiveSprintExclusively,
+  updateSprintWithExclusiveActive,
+} from './sprintRepo.js'
 
 const adminUserListSelect = {
   id: true,
@@ -190,14 +194,11 @@ export function createAdminRepository(prisma: PrismaClient) {
       const { startsAt, endsAt } = normalizeDatesForBecomeActive({
         existingEndsAt: sprint.endsAt,
       })
-      await prisma.$transaction([
-        prisma.sprint.updateMany({ where: { id: { not: id } }, data: { active: false } }),
-        prisma.sprint.update({
-          where: { id },
-          data: { active: true, archived: false, startsAt, endsAt },
-        }),
-      ])
-      return prisma.sprint.findUnique({ where: { id } })
+      return setActiveSprintExclusively(prisma, id, {
+        archived: false,
+        startsAt,
+        endsAt,
+      })
     },
 
     async listSprintAccess(sprintId: string) {
@@ -317,13 +318,16 @@ export function createAdminRepository(prisma: PrismaClient) {
 
     async grantAchievement(userId: string, achievementId: string) {
       return prisma.userAchievement.upsert({
-        where: { userId_achievementId: { userId, achievementId } },
-        create: { userId, achievementId },
+        where: {
+          userId_achievementId_sprintId: { userId, achievementId, sprintId: '' },
+        },
+        create: { userId, achievementId, sprintId: '' },
         update: {},
       })
     },
 
     async revokeAchievement(userId: string, achievementId: string) {
+      // Admin revoke wipes every binding (sprint-scoped or not) for this user+achievement.
       await prisma.userAchievement.deleteMany({ where: { userId, achievementId } })
     },
 

@@ -15,12 +15,21 @@ function mapError(error: unknown, req: Request): { status: number; body: ErrorBo
 
   if (error instanceof ZodError) {
     req.log?.warn({ err: error.issues }, 'Validation failed')
+    const issues = error.issues.map((i) => ({
+      field: i.path.map(String).join('.') || '_',
+      code: i.code,
+      message: i.message,
+    }))
+    const firstFieldIssue = issues.find((i) => i.field && i.field !== '_')
+    const summary = firstFieldIssue
+      ? `${firstFieldIssue.field}: ${firstFieldIssue.message}`
+      : (issues[0]?.message ?? 'Request payload failed validation')
     return {
       status: 400,
       body: {
         code: 'VALIDATION_ERROR',
-        message: 'Request payload failed validation',
-        details: error.flatten(),
+        message: summary,
+        details: { ...error.flatten(), issues },
         requestId,
       },
     }
@@ -70,10 +79,15 @@ function mapError(error: unknown, req: Request): { status: number; body: ErrorBo
       const target = Array.isArray(error.meta?.target)
         ? (error.meta!.target as string[]).join(',')
         : String(error.meta?.target ?? 'value')
-      req.log?.warn({ err: error }, 'Prisma unique constraint conflict')
+      // Log the offending field internally for debugging; never leak it in the HTTP body.
+      req.log?.warn({ err: error, target }, 'Prisma unique constraint conflict')
       return {
         status: 409,
-        body: { code: 'CONFLICT', message: `Duplicate ${target}`, requestId },
+        body: {
+          code: 'CONFLICT_UNIQUE',
+          message: 'Resource already exists',
+          requestId,
+        },
       }
     }
     if (error.code === 'P2025') {

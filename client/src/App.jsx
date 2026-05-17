@@ -1,6 +1,7 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider.jsx'
 import { ProtectedRoute } from './auth/ProtectedRoute.jsx'
+import { AccessDeniedRedirect } from './components/AccessDeniedRedirect.jsx'
 import { LoginPage } from './pages/LoginPage.jsx'
 import { HallOfFamePage } from './pages/HallOfFamePage.jsx'
 import { MainScreen } from './pages/MainScreen.jsx'
@@ -47,7 +48,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<AccessDeniedRedirect />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

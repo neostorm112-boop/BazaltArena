@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { normalizeDatesForBecomeActive } from '../domain/sprintArenaSchedule.js'
 import { AppError } from '../errors/AppError.js'
+import { safeAudit as runSafeAudit } from '../infra/safeAudit.js'
 import type { AdminRepository, AdminUserListRow } from '../repositories/adminRepo.js'
 import type { AdminPatchUserBody } from '../validation/schemas.js'
 
@@ -70,15 +71,15 @@ async function safeAudit(
   action: string,
   details: Record<string, unknown>
 ) {
-  try {
-    await db.appendAuditLog({
-      actorId,
-      action,
-      details: details as Prisma.JsonObject,
-    })
-  } catch {
-    /* аудит не должен ломать админ-операции */
-  }
+  await runSafeAudit(
+    () =>
+      db.appendAuditLog({
+        actorId,
+        action,
+        details: details as Prisma.JsonObject,
+      }),
+    { actorId, action }
+  )
 }
 
 import type { MemberNotificationService } from './memberNotificationService.js'
@@ -93,6 +94,13 @@ export interface AdminSubmissionStatusHook {
   }): Promise<void>
 }
 
+/** Сигнатура callback для таргетированной отправки события владельцу решения. */
+export type AdminUserNotifier = (
+  userId: string,
+  event: 'submission:reviewed' | 'achievement:granted' | 'solution:liked',
+  payload: Record<string, unknown>
+) => void
+
 export function createAdminService(
   db: AdminRepository,
   metrics: SprintMetricsWriter,
@@ -101,7 +109,9 @@ export function createAdminService(
     MemberNotificationService,
     'notifySubmissionFieldsChanged' | 'notifyBatchAcceptedToHall'
   >,
-  submissionStatusHook?: AdminSubmissionStatusHook
+  submissionStatusHook?: AdminSubmissionStatusHook,
+  /** Точечная WebSocket-отправка владельцу решения при изменении статуса. */
+  notifyUser?: AdminUserNotifier
 ) {
   const fire = (entity: AdminDataChangeDetail['entity']) => {
     try {
@@ -416,6 +426,22 @@ export function createAdminService(
       } catch {
         /* уведомление не должно ломать PATCH */
       }
+      // Live-обновление: владелец решения мгновенно увидит результат проверки.
+      if (data.status !== undefined && data.status !== before.status) {
+        try {
+          notifyUser?.(row.userId, 'submission:reviewed', {
+            submissionId: row.id,
+            sprintId: row.sprintId,
+            sprintTitle: row.sprint.title,
+            status: row.status,
+            mentorScore: row.mentorScore,
+            mentorComment: row.mentorComment ?? null,
+          })
+        } catch {
+          /* live-emit не должен ломать PATCH */
+        }
+      }
+
       if (submissionStatusHook && data.status !== undefined && data.status !== before.status) {
         try {
           await submissionStatusHook.onSubmissionStatusChange({

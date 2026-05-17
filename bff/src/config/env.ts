@@ -52,13 +52,64 @@ const baseSchema = z.object({
         : []
     ),
 
-  DEV_REGISTER_KEY: z.string().optional(),
+  // Express `trust proxy` setting. Parsed in loadEnv() to support hop-count,
+  // IP/CIDR allowlist, or named presets without unsafe `true`.
+  TRUST_PROXY: z.string().optional(),
+
+  DEV_REGISTER_KEY: z.string().min(1).optional(),
 })
 
-export type AppEnv = z.infer<typeof baseSchema>
+export type TrustProxy = boolean | number | string | string[]
+
+type BaseEnv = z.infer<typeof baseSchema>
+
+export type AppEnv = Omit<BaseEnv, 'TRUST_PROXY'> & {
+  TRUST_PROXY: TrustProxy
+}
+
+const TRUST_PROXY_PRESETS = new Set(['loopback', 'linklocal', 'uniquelocal'])
+
+function parseTrustProxy(raw: string | undefined, isProd: boolean): TrustProxy {
+  const value = raw?.trim()
+  if (!value) {
+    if (isProd) {
+      throw new Error(
+        'TRUST_PROXY is required in production. Set it to a non-negative hop count, ' +
+          'a comma-separated IP/CIDR allowlist (e.g. "10.0.0.0/8,127.0.0.1"), ' +
+          'one of "loopback"/"linklocal"/"uniquelocal", or "false" to disable.'
+      )
+    }
+    return 'loopback'
+  }
+  if (value === 'false') return false
+  if (value === 'true') {
+    throw new Error(
+      'TRUST_PROXY=true is unsafe: it lets any X-Forwarded-For value through. ' +
+        'Use a hop count, an IP/CIDR allowlist, or a named preset instead.'
+    )
+  }
+  if (TRUST_PROXY_PRESETS.has(value)) return value
+  if (/^\d+$/.test(value)) {
+    const hops = Number(value)
+    if (!Number.isFinite(hops) || hops < 0) {
+      throw new Error('TRUST_PROXY hop count must be a non-negative integer')
+    }
+    return hops
+  }
+  const list = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (list.length === 0) {
+    throw new Error('TRUST_PROXY allowlist is empty after parsing')
+  }
+  return list
+}
 
 function applyDevDefaults(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  if (env.NODE_ENV === 'production') return env
+  // Дефолты применяются ТОЛЬКО при явном NODE_ENV=development|test.
+  // Любое другое значение (production, staging, undefined, опечатка) — секреты обязательны.
+  if (env.NODE_ENV !== 'development' && env.NODE_ENV !== 'test') return env
   const isTest = env.NODE_ENV === 'test'
   const defaults: NodeJS.ProcessEnv = {
     JWT_ACCESS_SECRET: 'basalt-dev-access-secret-please-change-me-32+chars',
@@ -87,6 +138,12 @@ export function loadEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv {
   if (isProd && !result.data.REDIS_URL) {
     throw new Error('REDIS_URL is required in production')
   }
+  if (isProd && !result.data.DEV_REGISTER_KEY) {
+    throw new Error(
+      'DEV_REGISTER_KEY is required in production: registration must be gated by a shared secret. ' +
+        'Set DEV_REGISTER_KEY in the environment.'
+    )
+  }
 
   let corsOrigins = [...result.data.CORS_ORIGINS]
   if (corsOrigins.length === 0) {
@@ -103,7 +160,9 @@ export function loadEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv {
     ]
   }
 
-  return { ...result.data, CORS_ORIGINS: corsOrigins }
+  const trustProxy = parseTrustProxy(result.data.TRUST_PROXY, isProd)
+
+  return { ...result.data, CORS_ORIGINS: corsOrigins, TRUST_PROXY: trustProxy }
 }
 
 export const env = loadEnv()

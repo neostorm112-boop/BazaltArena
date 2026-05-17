@@ -9,24 +9,37 @@ import {
   logger,
   prisma,
 } from './core/index.js'
-import { attachSocketIO, emitDataUpdated } from './modules/realtime/index.js'
+import {
+  attachSocketIO,
+  emitDataUpdated,
+  emitToUser,
+  type UserEvent,
+} from './modules/realtime/index.js'
 
 async function main() {
   await prisma.$connect()
   getRedis()
 
+  // Ref-объект чтобы прокинуть emit-функции в container ДО создания Socket.io.
+  // Поначалу — пустые функции; после `attachSocketIO` заполняем реальными.
   const realtimeRef: {
     emit: (detail?: { entity?: 'sprint' | 'submission' | 'user' }) => void
-  } = { emit: () => {} }
+    emitUser: (userId: string, event: UserEvent, payload: Record<string, unknown>) => void
+  } = {
+    emit: () => {},
+    emitUser: () => {},
+  }
 
   const container = buildContainer(prisma, {
     notifyDataUpdated: (detail) => realtimeRef.emit(detail),
+    notifyUser: (userId, event, payload) => realtimeRef.emitUser(userId, event, payload),
   })
 
   const app = createApp({ prisma, container })
   const httpServer = http.createServer(app)
   const io = attachSocketIO(httpServer)
   realtimeRef.emit = (detail) => emitDataUpdated(io, { source: 'bff', ...detail })
+  realtimeRef.emitUser = (userId, event, payload) => emitToUser(io, userId, event, payload)
 
   httpServer.listen(env.PORT, () => {
     logger.info({ port: env.PORT, env: env.NODE_ENV }, 'BFF listening (HTTP + Socket.io)')

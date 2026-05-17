@@ -115,15 +115,17 @@ conditionalDescribe('BFF integration', () => {
     const submissionId = submission.body.id
 
     const like1 = await request(app)
-      .put(`/api/v1/solutions/${submissionId}/like`)
+      .post(`/api/v1/solutions/${submissionId}/like`)
       .set('Authorization', `Bearer ${access}`)
       .expect(200)
     expect(like1.body.likes).toBe(1)
+    expect(like1.body.liked).toBe(true)
     const like2 = await request(app)
-      .put(`/api/v1/solutions/${submissionId}/like`)
+      .post(`/api/v1/solutions/${submissionId}/like`)
       .set('Authorization', `Bearer ${access}`)
       .expect(200)
     expect(like2.body.likes).toBe(1)
+    expect(like2.body.liked).toBe(true)
 
     const hall = await request(app)
       .get('/api/v1/hall?sortBy=likes')
@@ -186,6 +188,88 @@ conditionalDescribe('BFF integration', () => {
     expect(res.body.code).toBe('CONFLICT')
   })
 
+  it('rate-limits brute-force login by email even when X-Forwarded-For is spoofed per request', async () => {
+    const prevDisabled = process.env.RATE_LIMIT_DISABLED
+    process.env.RATE_LIMIT_DISABLED = 'false'
+    try {
+      const victimEmail = 'spoof-victim@example.com'
+      const goodEmail = 'spoof-good@example.com'
+
+      await registerMember(app, {
+        email: victimEmail,
+        handle: 'spoofvictim',
+        password: 'correctpass1',
+      }).expect(201)
+      await registerMember(app, {
+        email: goodEmail,
+        handle: 'spoofgood',
+        password: 'correctpass1',
+      }).expect(201)
+
+      // Rotate X-Forwarded-For on every attempt; the IP-keyed limiter would let
+      // these through indefinitely, so the email-keyed limiter must trip.
+      let observed429 = false
+      for (let i = 0; i < 20 && !observed429; i += 1) {
+        const ip = `198.51.100.${(i % 250) + 1}`
+        const res = await request(app)
+          .post('/api/v1/auth/login')
+          .set('x-forwarded-for', ip)
+          .send({ email: victimEmail, password: 'wrongpass' })
+        if (res.status === 429) {
+          expect(res.body.code).toBe('RATE_LIMITED')
+          observed429 = true
+          break
+        }
+        expect([400, 401]).toContain(res.status)
+      }
+      expect(observed429).toBe(true)
+
+      // A different account from the same shared infra must still log in.
+      const ok = await request(app)
+        .post('/api/v1/auth/login')
+        .set('x-forwarded-for', '198.51.100.250')
+        .send({ email: goodEmail, password: 'correctpass1' })
+      expect(ok.status).toBe(200)
+      expect(ok.body.accessToken).toBeTruthy()
+    } finally {
+      if (prevDisabled === undefined) {
+        delete process.env.RATE_LIMIT_DISABLED
+      } else {
+        process.env.RATE_LIMIT_DISABLED = prevDisabled
+      }
+    }
+  })
+
+  // README + bff/prisma/seed.ts обещают demo-юзера `demo@basalt.arena` / `demo1234`.
+  // Эта связка задокументирована, поэтому ломать её нельзя.
+  it('seed-документация: demo@basalt.arena логинится с паролем demo1234', async () => {
+    const argon2 = await import('argon2')
+    const passwordHash = await argon2.hash('demo1234', { type: argon2.argon2id })
+    await prisma.user.create({
+      data: {
+        email: 'demo@basalt.arena',
+        handle: 'demo_player',
+        passwordHash,
+        role: 'USER',
+        avatarUrl: 'https://example.com/demo.png',
+      },
+    })
+
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'demo@basalt.arena', password: 'demo1234' })
+      .expect(200)
+    expect(login.body.accessToken).toBeTruthy()
+    expect(login.body.user.handle).toBe('demo_player')
+
+    const me = await request(app)
+      .get('/api/v1/me')
+      .set('Authorization', `Bearer ${login.body.accessToken}`)
+      .expect(200)
+    expect(me.body.user.handle).toBe('demo_player')
+    expect(me.body.profile.contacts.email).toBe('demo@basalt.arena')
+  })
+
   it('admin PATCH submission updates sprint metrics', async () => {
     const argon2 = await import('argon2')
     const hash = await argon2.hash('adminpass1', { type: argon2.argon2id })
@@ -243,5 +327,106 @@ conditionalDescribe('BFF integration', () => {
     const metrics = updatedSprint.metrics as { verifiedSolutions?: number; submissions?: number }
     expect(metrics.submissions).toBe(1)
     expect(metrics.verifiedSolutions).toBeGreaterThanOrEqual(1)
+  })
+
+  describe('like endpoint REST semantics', () => {
+    async function setup() {
+      const reg = await registerMember(app, {
+        email: `liker-${Math.random().toString(36).slice(2, 8)}@x.com`,
+        handle: `liker_${Math.random().toString(36).slice(2, 8)}`,
+        password: 'password123',
+      }).expect(201)
+      const access = reg.body.accessToken
+      const sprint = await prisma.sprint.findFirstOrThrow()
+      const sub = await request(app)
+        .post(`/api/v1/sprints/${sprint.id}/submissions`)
+        .set('Authorization', `Bearer ${access}`)
+        .send({ repoUrl: 'https://github.com/x/y', demoUrl: 'https://demo.example.com' })
+        .expect(201)
+      return { access, submissionId: sub.body.id as string }
+    }
+
+    it('POST then POST is idempotent and does not bump counter', async () => {
+      const { access, submissionId } = await setup()
+      const first = await request(app)
+        .post(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      expect(first.body).toMatchObject({ submissionId, liked: true, likes: 1 })
+      const second = await request(app)
+        .post(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      expect(second.body).toMatchObject({ submissionId, liked: true, likes: 1 })
+      const row = await prisma.submission.findUniqueOrThrow({ where: { id: submissionId } })
+      expect(row.likesCount).toBe(1)
+    })
+
+    it('DELETE on absent like is idempotent — no side effect on counter', async () => {
+      const { access, submissionId } = await setup()
+      // Start with no like at all.
+      const first = await request(app)
+        .delete(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      expect(first.body).toMatchObject({ submissionId, liked: false, likes: 0 })
+      const second = await request(app)
+        .delete(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      expect(second.body).toMatchObject({ submissionId, liked: false, likes: 0 })
+      const row = await prisma.submission.findUniqueOrThrow({ where: { id: submissionId } })
+      expect(row.likesCount).toBe(0)
+    })
+
+    it('repeated DELETE after a real like never drives counter negative', async () => {
+      const { access, submissionId } = await setup()
+      await request(app)
+        .post(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      await request(app)
+        .delete(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      for (let i = 0; i < 3; i += 1) {
+        const r = await request(app)
+          .delete(`/api/v1/solutions/${submissionId}/like`)
+          .set('Authorization', `Bearer ${access}`)
+          .expect(200)
+        expect(r.body.likes).toBe(0)
+      }
+      const row = await prisma.submission.findUniqueOrThrow({ where: { id: submissionId } })
+      expect(row.likesCount).toBe(0)
+    })
+
+    it('PUT alias still works but is marked deprecated', async () => {
+      const { access, submissionId } = await setup()
+      const res = await request(app)
+        .put(`/api/v1/solutions/${submissionId}/like`)
+        .set('Authorization', `Bearer ${access}`)
+        .expect(200)
+      expect(res.body).toMatchObject({ submissionId, liked: true, likes: 1 })
+      expect(res.headers.deprecation).toBe('true')
+    })
+
+    it('parallel POSTs from the same user collapse to a single like', async () => {
+      const { access, submissionId } = await setup()
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          request(app)
+            .post(`/api/v1/solutions/${submissionId}/like`)
+            .set('Authorization', `Bearer ${access}`)
+        )
+      )
+      for (const r of results) {
+        expect(r.status).toBe(200)
+        expect(r.body.liked).toBe(true)
+      }
+      const row = await prisma.submission.findUniqueOrThrow({ where: { id: submissionId } })
+      expect(row.likesCount).toBe(1)
+      const likeRows = await prisma.solutionLike.findMany({ where: { submissionId } })
+      expect(likeRows).toHaveLength(1)
+    })
   })
 })
