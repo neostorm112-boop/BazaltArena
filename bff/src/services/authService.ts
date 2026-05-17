@@ -1,9 +1,10 @@
+import { randomUUID } from 'node:crypto'
 import argon2 from 'argon2'
 import { AppError } from '../errors/AppError.js'
 import type { MemberAudit } from '../infra/memberAudit.js'
 import type { UserRepository } from '../repositories/userRepo.js'
 import { issueTokens, verifyRefreshToken, type TokenPair } from './tokenService.js'
-import { isSessionActive, registerSession, revokeSession } from './sessionStore.js'
+import { registerSession, revokeFamily, revokeSession, rotateSession } from './sessionStore.js'
 import type { User } from '@prisma/client'
 
 export interface PublicUser {
@@ -63,7 +64,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       const ok = await verifyPassword(user.passwordHash, password)
       if (!ok) throw AppError.invalidCredentials()
       const tokens = issueTokens(user)
-      await registerSession(tokens.jti)
+      await registerSession(tokens.jti, tokens.familyId)
       await deps.memberAudit?.log(user.id, 'AUTH_LOGIN', {})
       return { ...tokens, user: publicUser(user) }
     },
@@ -92,24 +93,42 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       })
       if (deps.onMemberRegistered) await deps.onMemberRegistered(created.id)
       const tokens = issueTokens(created)
-      await registerSession(tokens.jti)
+      await registerSession(tokens.jti, tokens.familyId)
       await deps.memberAudit?.log(created.id, 'AUTH_REGISTER', {})
       return { ...tokens, user: publicUser(created) }
     },
 
     async refresh({ refreshToken }) {
       const claims = verifyRefreshToken(refreshToken)
-      if (!(await isSessionActive(claims.jti))) {
+      const newJti = randomUUID()
+      const outcome = await rotateSession({
+        oldJti: claims.jti,
+        newJti,
+        familyId: claims.fam,
+      })
+      if (outcome !== 'ok') {
+        // Anything other than a clean rotation means we cannot trust this
+        // refresh token. If the family is still alive (replay/mismatch), burn
+        // the whole chain so the legitimate session is invalidated too — the
+        // user must re-authenticate. Audit replay/mismatch as a security event.
+        if (outcome === 'replay' || outcome === 'mismatch') {
+          await revokeFamily(claims.fam)
+          await deps.memberAudit?.log(claims.sub, 'AUTH_REFRESH_REPLAY', {
+            jti: claims.jti,
+            familyId: claims.fam,
+            outcome,
+          })
+        }
         throw AppError.unauthorized('Refresh token revoked')
       }
+
       const user = await deps.users.findById(claims.sub)
       if (!user) {
-        await revokeSession(claims.jti)
+        await revokeFamily(claims.fam)
         throw AppError.unauthorized('User no longer exists')
       }
-      await revokeSession(claims.jti)
-      const tokens = issueTokens(user)
-      await registerSession(tokens.jti)
+
+      const tokens = issueTokens(user, newJti, claims.fam)
       await deps.memberAudit?.log(user.id, 'AUTH_REFRESH', {})
       return { ...tokens, user: publicUser(user) }
     },
