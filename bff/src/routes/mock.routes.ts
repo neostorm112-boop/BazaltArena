@@ -99,6 +99,16 @@ function withMockSprintFlags<T extends { arenaActive?: boolean; endsAt?: string 
   return { ...sprint, systemActive, isMainActive: sprint.arenaActive ?? false }
 }
 
+/**
+ * Единое правило «приём открыт» во всех ответах адаптера: спринт опубликован И дедлайн
+ * не прошёл. Используется в /v2/me и /v2/meta, чтобы systemActive был согласован со
+ * списком /v2/sprints (флаг `active` в БД может расходиться с дедлайном).
+ */
+function computeSystemActive(published: boolean, endsAt: Date | null): boolean {
+  if (!published) return false
+  return endsAt == null || endsAt.getTime() > Date.now()
+}
+
 const mockLoginBody = z
   .object({
     loginOrEmail: z.string().trim().min(1).max(320).optional(),
@@ -195,7 +205,18 @@ export function mockRouter(container: Container, prisma: PrismaClient) {
   v2.get(
     '/meta',
     asyncHandler(async (_req, res) => {
-      res.status(200).json(await container.meta.getMeta())
+      const meta = await container.meta.getMeta()
+      // Согласуем systemActive тизера с единым правилом (дедлайн), а не с флагом `active`.
+      if (meta.sprintTeaser) {
+        const active = await prisma.sprint.findFirst({
+          where: { active: true },
+          select: { published: true, endsAt: true },
+        })
+        if (active) {
+          meta.sprintTeaser.systemActive = computeSystemActive(active.published, active.endsAt)
+        }
+      }
+      res.status(200).json(meta)
     })
   )
 
@@ -244,7 +265,7 @@ export function mockRouter(container: Container, prisma: PrismaClient) {
           description: '',
           completedLabel: sprint?.completedLabel ?? '',
           brief: sprint?.brief ?? {},
-          systemActive: me.activeSprint.systemActive,
+          systemActive: sprint ? computeSystemActive(sprint.published, sprint.endsAt) : false,
           endsAt: me.activeSprint.endsAt,
           activeSubmission:
             sub && status
