@@ -24,6 +24,7 @@ function decorateSolution(submission: SubmissionWithAuthor, index: number, liked
   const displayName = submission.user.handle.replace(/^@/, '')
   return {
     id: submission.id,
+    userId: submission.userId,
     rank,
     rankBadge: badge,
     showCrown: rank === 1,
@@ -32,6 +33,8 @@ function decorateSolution(submission: SubmissionWithAuthor, index: number, liked
     avatarUrl: submission.user.avatarUrl,
     avatarSeed: submission.user.handle,
     dateLabel: formatDate(submission.createdAt),
+    createdAt: submission.createdAt.toISOString(),
+    profileUrl: '#',
     mentorScore: submission.mentorScore,
     codeUrl: submission.repoUrl,
     demoUrl: submission.demoUrl ?? '#',

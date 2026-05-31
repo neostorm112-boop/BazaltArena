@@ -116,10 +116,11 @@ conditionalDescribe('BFF mock contract (external front)', () => {
       .expect(200)
     expect(login.body.accessToken).toBeTruthy()
 
-    await request(app)
+    const logout = await request(app)
       .post('/api/mock/v1/auth/logout')
       .set('Authorization', `Bearer ${login.body.accessToken}`)
-      .expect(204)
+      .expect(200)
+    expect(logout.body.ok).toBe(true)
   })
 
   it('mock /v2/me возвращает nested-shape совместимый с normalizeMeFromV2', async () => {

@@ -99,9 +99,10 @@ export function createApp({ prisma, container }: AppOptions): Express {
   app.use('/api/v1/hall', hallRouter(services))
   app.use('/api/v1/admin', adminRouter(services.admin))
   // Контракт под внешний фронт из конкурса (basalt-arena). Слушает `/api/mock/v1` и `/api/mock/v1/v2`.
-  // Никогда не монтируется в production — это dev-инструмент для внешнего конкурсного фронта.
-  if (env.NODE_ENV !== 'production') {
-    app.use('/api/mock/v1', mockRouter(services))
+  // Включён по умолчанию (в т.ч. в production), чтобы один бэк обслуживал и наш фронт (`/api/v1`),
+  // и оригинальный конкурсный фронт (`/api/mock/v1`). Отключается явно через MOCK_API_ENABLED=false.
+  if (process.env.MOCK_API_ENABLED !== 'false') {
+    app.use('/api/mock/v1', mockRouter(services, prisma))
   }
 
   app.use((req, res) => {

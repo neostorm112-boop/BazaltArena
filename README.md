@@ -165,6 +165,7 @@ npm run dev:all
 | `JWT_REFRESH_TTL_SECONDS` | `2592000`     | Время жизни refresh-токена (30 дней)                                                                     |
 | `DEV_REGISTER_KEY`        | —             | Если задан — самостоятельная регистрация требует заголовок `x-dev-register-key`                          |
 | `RATE_LIMIT_DISABLED`     | `false`       | Только не-production; отключить rate-limit на dev                                                        |
+| `MOCK_API_ENABLED`        | `true`        | Слой совместимости `/api/mock/v1` для внешнего конкурсного фронта; `false` — отключить                   |
 | `VITE_API_BASE_URL`       | —             | Если пусто — Vite использует прокси `/api/v1` → `localhost:3001`. Задайте для указания на внешний сервер |
 | `SEED_ADMIN_PASSWORD`     | `admin1234`   | Пароль admin-аккаунта при сиде                                                                           |
 | `SEED_DEMO_PASSWORD`      | `demo1234`    | Пароль demo-аккаунта при сиде                                                                            |
@@ -281,16 +282,16 @@ routes/ → middleware (auth, validate) → services/ → repositories/ → Pris
 
 ### Маршруты (`bff/src/routes/`)
 
-| Файл                   | Prefix               | Описание                                           |
-| ---------------------- | -------------------- | -------------------------------------------------- |
-| `auth.routes.ts`       | `/api/v1/auth`       | Вход, выход, refresh токена                        |
-| `me.routes.ts`         | `/api/v1/me`         | Профиль текущего пользователя, уведомления         |
-| `sprint.routes.ts`     | `/api/v1/sprint`     | Активный спринт, задача, таймер                    |
-| `submission.routes.ts` | `/api/v1/submission` | Отправка и просмотр решений, лайки                 |
-| `hall.routes.ts`       | `/api/v1/hall`       | Публичный зал славы                                |
-| `meta.routes.ts`       | `/api/v1/meta`       | Публичные мета-данные (тизер спринта, маркетинг)   |
-| `admin.routes.ts`      | `/api/v1/admin`      | Все CRUD-операции для админки (требует роль ADMIN) |
-| `mock.routes.ts`       | `/api/v1/mock`       | Dev-хелперы для тестирования                       |
+| Файл                   | Prefix               | Описание                                                   |
+| ---------------------- | -------------------- | ---------------------------------------------------------- |
+| `auth.routes.ts`       | `/api/v1/auth`       | Вход, выход, refresh токена                                |
+| `me.routes.ts`         | `/api/v1/me`         | Профиль текущего пользователя, уведомления                 |
+| `sprint.routes.ts`     | `/api/v1/sprint`     | Активный спринт, задача, таймер                            |
+| `submission.routes.ts` | `/api/v1/submission` | Отправка и просмотр решений, лайки                         |
+| `hall.routes.ts`       | `/api/v1/hall`       | Публичный зал славы                                        |
+| `meta.routes.ts`       | `/api/v1/meta`       | Публичные мета-данные (тизер спринта, маркетинг)           |
+| `admin.routes.ts`      | `/api/v1/admin`      | Все CRUD-операции для админки (требует роль ADMIN)         |
+| `mock.routes.ts`       | `/api/mock/v1`       | Слой совместимости с внешним конкурсным фронтом (см. ниже) |
 
 ### Сервисы (`bff/src/services/`)
 
@@ -309,6 +310,28 @@ routes/ → middleware (auth, validate) → services/ → repositories/ → Pris
 | `metaService.ts`               | Публичные мета-данные (тизер спринта, маркетинг)         |
 | `memberNotificationService.ts` | Создание уведомлений участникам                          |
 | `profileService.ts`            | Профиль, история, ачивки пользователя                    |
+
+---
+
+## Совместимость с конкурсным фронтом (`/api/mock/v1`)
+
+Бэкенд обслуживает **два фронта одновременно**, одной кодовой базой:
+
+- `/api/v1/*` — собственный фронт и админка этого репозитория.
+- `/api/mock/v1/*` — **слой-адаптер** (`bff/src/routes/mock.routes.ts`), который повторяет контракт исходного конкурсного фронта [UsmanGamidov/Basalt-Arena](https://github.com/UsmanGamidov/Basalt-Arena). Благодаря ему **неизменённый** оригинальный фронт заводится на этом бэке: вход, спринты, зал славы, профиль, отправка решений, лайки.
+
+Адаптер переиспользует те же сервисы и middleware (auth, rate-limit, валидация), переводя ответы в формат, который читает оригинальный `client/src/api/basaltApi.js` (`normalizeMeFromV2`). Внутри:
+
+- `/api/mock/v1/auth/*` — вход (`loginOrEmail` + один `accessToken`), регистрация (гейт по `x-dev-register-key`), выход.
+- `/api/mock/v1/v2/*` — `meta`, `me`, `me/sprints`, `sprints`, `sprints/:id`, `sprints/:id/solutions` (голый массив), `submissions`, `submissions/active`, удаление, `solutions/:id/like` (toggle), профиль, уведомления.
+
+Маппинг статусов решения: `PENDING/REVIEWED → pending_review`, `ACCEPTED → approved`, `REJECTED → deleted_by_admin`, отзыв пользователем → `deleted_by_user`.
+
+**Включение:** адаптер смонтирован во всех окружениях по умолчанию; отключается переменной `MOCK_API_ENABLED=false`.
+
+**Демо-доступы** (после `db:seed`): участник `demo@basalt.arena` / `demo1234`, админ `admin@admin.com` / `admin1234`.
+
+> Покрыт golden path (пользовательские сценарии). Админ-контракт оригинала (`/api/mock/v1/admin/*`) пока не реализован — собственная админка работает через `/api/v1/admin`.
 
 ---
 
