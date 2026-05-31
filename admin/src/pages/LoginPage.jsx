@@ -5,8 +5,9 @@ import { Input } from '../components/ui/input.jsx'
 import { Label } from '../components/ui/label.jsx'
 
 export function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  // Автоподстановка демо-доступов админа (как на клиенте) — чтобы жюри входило в один клик.
+  const [email, setEmail] = useState('admin@admin.com')
+  const [password, setPassword] = useState('admin1234')
   const [err, setErr] = useState('')
 
   // На странице логина любые сохранённые токены — заведомо протухшие
